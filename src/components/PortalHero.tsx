@@ -1,5 +1,3 @@
-import ProcessedIllustration from "@/components/ProcessedIllustration";
-
 const PortalHero = () => {
   return (
     <div className="flex flex-col justify-center items-start h-full px-8 lg:px-12">
@@ -9,12 +7,12 @@ const PortalHero = () => {
           Management<br />
           Portal
         </h1>
+
         <p className="text-lg text-muted-foreground max-w-md">
           Streamline attendance, tasks, and reporting in one place.
         </p>
       </div>
-      
-      <ProcessedIllustration />
+    
     </div>
   );
 };

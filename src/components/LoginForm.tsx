@@ -1,17 +1,18 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Eye, EyeOff } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
-import { Eye, EyeOff } from "lucide-react";
 import api from "../api/api";
+import NormalRegistrationSignUpButton from "./normalRegistrationSignUpButton"; // ✅ Import signup component
 
 const LoginForm = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [showSignUp, setShowSignUp] = useState(false); // ✅ Track whether signup is open
 
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -19,11 +20,9 @@ const LoginForm = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-
     try {
       const res = await api.post("/auth/login", { email, password });
 
-      // ✅ Save JWT for /auth/me interceptor
       if (res.data?.token) {
         localStorage.setItem("token", res.data.token);
       }
@@ -33,7 +32,6 @@ const LoginForm = () => {
         description: "Welcome to the Dashboard!",
       });
 
-      // Optional: redirect based on role
       if (res.data.role === "admin") {
         navigate("/admin-dashboard");
       } else {
@@ -42,8 +40,7 @@ const LoginForm = () => {
     } catch (err: any) {
       toast({
         title: "Login Failed",
-        description:
-          err.response?.data?.message || "Invalid email or password",
+        description: err.response?.data?.message || "Invalid email or password",
         variant: "destructive",
       });
     } finally {
@@ -51,24 +48,59 @@ const LoginForm = () => {
     }
   };
 
+  // ✅ If signup mode is active, show the signup component instead
+  
+  // ✅ If signup mode is active, show the signup component instead
+if (showSignUp) {
+  return (
+    <div className="w-full max-w-md mx-auto">
+      <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl border border-white/20 p-6">
+        <div className="text-center mb-4"> {/* reduced margin from mb-8 → mb-4 */}
+          <h2 className="text-3xl font-bold mb-1 bg-gradient-to-r from-blue-700 via-blue-600 to-blue-400 text-transparent bg-clip-text">
+           Sign up for Intern Management Portal
+           </h2>
+
+          <p className="text-gray-600 text-sm m-0">
+            Create your account using your @cloud.neduet.edu.pk email
+          </p>
+        </div>
+
+        <div className="mt-2"> {/* reduced top margin to bring closer */}
+          <NormalRegistrationSignUpButton />
+        </div>
+
+        <div className="text-center mt-4"> {/* reduced mt-6 → mt-4 */}
+          <p className="text-sm text-gray-600">
+            Already have an account?{" "}
+            <button
+              className="text-blue-600 font-medium hover:text-blue-700"
+              onClick={() => setShowSignUp(false)}
+            >
+              Back to Login
+            </button>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+  // ✅ Default view: Login Form
   return (
     <div className="w-full max-w-md mx-auto">
       <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl border border-white/20 p-8">
-        {/* Header */}
         <div className="text-center mb-8">
           <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome!</h2>
           <p className="text-gray-600 text-sm">
             Sign into CS IT Intern Management Portal
           </p>
           <p className="text-gray-500 text-xs mt-1">
-            (Use your @cloud.neduet.edu.pk Google account credentials to sign
-            in.)
+            (Use your @cloud.neduet.edu.pk Google account credentials to sign in.)
           </p>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Email */}
           <div>
             <label
               htmlFor="email"
@@ -86,7 +118,6 @@ const LoginForm = () => {
             />
           </div>
 
-          {/* Password */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <label
@@ -125,7 +156,6 @@ const LoginForm = () => {
             </div>
           </div>
 
-          {/* Submit */}
           <Button
             type="submit"
             disabled={isLoading}
@@ -135,24 +165,24 @@ const LoginForm = () => {
           </Button>
         </form>
 
-        {/* Sign Up link */}
         <div className="mt-6 text-center">
           <p className="text-gray-600 text-sm">
             Don't have an account?{" "}
-            <button className="text-blue-600 font-medium hover:text-blue-700"
-             onClick={() => navigate("/normal-register")}>
+            <button
+              className="text-blue-600 font-medium hover:text-blue-700"
+              onClick={() => setShowSignUp(true)} // ✅ Toggle to signup
+            >
               Sign up
             </button>
           </p>
         </div>
 
-        {/* Google Sign-In */}
         <Button
           type="button"
           variant="outline"
           className="w-full h-12 mt-4 border-2 border-gray-200 rounded-xl hover:bg-gray-50 transition-colors flex items-center justify-center space-x-3 bg-white"
           onClick={() =>
-            (window.location.href = "http://localhost:5000/auth/google")
+            (window.location.href = "http://localhost:5000/api/google")
           }
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -173,16 +203,11 @@ const LoginForm = () => {
               d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
             />
           </svg>
-          <span className="font-medium text-gray-700">
-            Continue with Google
-          </span>
+          <span className="font-medium text-gray-700">Continue with Google</span>
         </Button>
 
-        {/* Demo Accounts */}
         <div className="mt-6 pt-4 border-t border-gray-200">
-          <p className="text-sm text-gray-700 mb-3 font-semibold">
-            Demo Accounts
-          </p>
+          <p className="text-sm text-gray-700 mb-3 font-semibold">Demo Accounts</p>
           <div className="space-y-2">
             <div className="text-sm">
               <span className="font-semibold text-blue-600">Admin:</span>{" "}

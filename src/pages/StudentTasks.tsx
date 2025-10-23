@@ -1,4 +1,3 @@
-// client/src/pages/StudentTasks.tsx
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,7 +11,7 @@ import {
   User as UserIcon,
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
-import api from "@/api/api";
+import { fetchTasks, updateTaskStatus } from "@/api/api";
 
 type CurrentUser = {
   _id: string;
@@ -22,21 +21,44 @@ type CurrentUser = {
   picture?: string;
 };
 
+type Task = {
+  _id: string;
+  title: string;
+  description: string;
+  status: "Assigned" | "In Progress" | "Completed";
+  dueDate: string;
+  assignedTo: string | { email: string }; // match your task structure
+};
+
 const StudentTasks = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
   const [me, setMe] = useState<CurrentUser | null>(null);
   const [loadingMe, setLoadingMe] = useState(true);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loadingTasks, setLoadingTasks] = useState(true);
+  const [updating, setUpdating] = useState<string | null>(null);
 
-  // Load current user from backend
+  // Load current user using token
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const { data } = await api.get("/auth/me");
+        const token = localStorage.getItem("token");
+        if (!token) return navigate("/login");
+
+        const res = await fetch("http://localhost:5000/api/auth/me", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
         if (!mounted) return;
-        setMe(data.user);
+
+        if (data?.user) {
+          setMe(data.user);
+        } else {
+          navigate("/login");
+        }
       } catch {
         navigate("/login");
       } finally {
@@ -47,6 +69,31 @@ const StudentTasks = () => {
       mounted = false;
     };
   }, [navigate]);
+
+  // Fetch tasks and filter by current student
+  useEffect(() => {
+    if (!me) return;
+    (async () => {
+      try {
+        const { data } = await fetchTasks();
+        let allTasks: Task[] = Array.isArray(data) ? data : data.tasks || [];
+
+        // Filter tasks for current student only
+        const myTasks = allTasks.filter(
+          (task: Task) =>
+            task.assignedTo === me.email ||
+            (typeof task.assignedTo === "object" &&
+              task.assignedTo.email === me.email)
+        );
+
+        setTasks(myTasks);
+      } catch (err) {
+        console.error("Error fetching tasks:", err);
+      } finally {
+        setLoadingTasks(false);
+      }
+    })();
+  }, [me]);
 
   const displayName =
     me?.name || (me?.email ? me.email.split("@")[0] : "Student");
@@ -66,47 +113,54 @@ const StudentTasks = () => {
     { icon: Calendar, label: "Timetable & Scheduling", path: "/student-timetable" },
     { icon: UserIcon, label: "Profile", path: "/student-profile" },
   ];
-const handleLogout = () => {
-  localStorage.removeItem("token");
-  localStorage.removeItem("currentUser");
-  navigate("/");
-};
- 
- 
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("currentUser");
+    navigate("/");
+  };
 
   const handleNavigation = (path: string) => {
     navigate(path);
   };
 
-  const tasks = [
-    {
-      title: "Database Schema Design",
-      description: "Design and implement the database schema for the new project module",
-      dueDate: "Due: Dec 25, 2024",
-      status: "In Progress",
-      statusColor: "bg-yellow-100 text-yellow-800",
-      actions: ["Update Status", "Mark Complete"],
-      actionColors: ["bg-blue-600 hover:bg-blue-700", "bg-green-600 hover:bg-green-700"],
-    },
-    {
-      title: "API Documentation",
-      description: "Create comprehensive documentation for the REST API endpoints",
-      dueDate: "Due: Dec 28, 2024",
-      status: "Assigned",
-      statusColor: "bg-blue-100 text-blue-800",
-      actions: ["Start Task"],
-      actionColors: ["bg-blue-600 hover:bg-blue-700"],
-    },
-    {
-      title: "Requirement Analysis",
-      description: "Analyze and document project requirements",
-      dueDate: "Due: Dec 20, 2024",
-      status: "Completed",
-      statusColor: "bg-green-100 text-green-800",
-      actions: ["View Details"],
-      actionColors: ["bg-gray-600 hover:bg-gray-700"],
-    },
-  ];
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "Completed":
+        return "bg-green-100 text-green-800";
+      case "In Progress":
+        return "bg-yellow-100 text-yellow-800";
+      default:
+        return "bg-blue-100 text-blue-800";
+    }
+  };
+
+  const handleStatusChange = async (taskId: string, newStatus: string) => {
+    if (newStatus === "Completed") {
+      alert("Only admins can mark tasks as Completed.");
+      return;
+    }
+
+    try {
+      setUpdating(taskId);
+      await updateTaskStatus(taskId, newStatus, me?.role || "student");
+      setTasks((prev) =>
+        prev.map((t) =>
+          t._id === taskId ? { ...t, status: newStatus as Task["status"] } : t
+        )
+      );
+    } catch (err) {
+      console.error("Error updating task status", err);
+      alert("Failed to update task status.");
+    } finally {
+      setUpdating(null);
+    }
+  };
+
+  const getNextStatus = (currentStatus: string) => {
+    if (currentStatus === "Assigned") return "In Progress";
+    return "In Progress";
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -116,7 +170,7 @@ const handleLogout = () => {
           <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
             <UserIcon className="w-5 h-5 text-primary-foreground" />
           </div>
-        <div>
+          <div>
             <h1 className="text-lg font-semibold text-foreground">Student Dashboard</h1>
             <p className="text-sm text-muted-foreground">
               CS&IT Internship Program
@@ -160,7 +214,9 @@ const handleLogout = () => {
                 }`}
               >
                 <item.icon className="w-5 h-5 flex-shrink-0" />
-                <span className="font-medium text-sm leading-tight">{item.label}</span>
+                <span className="font-medium text-sm leading-tight">
+                  {item.label}
+                </span>
               </button>
             ))}
           </nav>
@@ -171,36 +227,47 @@ const handleLogout = () => {
           <div className="max-w-7xl mx-auto">
             <h2 className="text-2xl font-bold text-foreground mb-8">My Tasks</h2>
 
-            {/* Tasks List */}
-            <div className="space-y-6">
-              {tasks.map((task, index) => (
-                <Card key={index} className="bg-white border border-border">
-                  <CardContent className="p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <h3 className="text-lg font-semibold text-foreground">{task.title}</h3>
-                          <Badge className={`${task.statusColor} border-0`}>{task.status}</Badge>
+            {loadingTasks ? (
+              <p>Loading tasks...</p>
+            ) : tasks.length === 0 ? (
+              <p className="text-muted-foreground">No tasks assigned yet.</p>
+            ) : (
+              <div className="space-y-6">
+                {tasks.map((task) => (
+                  <Card key={task._id} className="bg-white border border-border">
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <h3 className="text-lg font-semibold text-foreground">{task.title}</h3>
+                            <Badge className={`${getStatusBadge(task.status)} border-0`}>
+                              {task.status}
+                            </Badge>
+                          </div>
+                          <p className="text-muted-foreground mb-3">{task.description}</p>
+                          <p className="text-sm text-muted-foreground">
+                            Due: {new Date(task.dueDate).toLocaleDateString()}
+                          </p>
                         </div>
-                        <p className="text-muted-foreground mb-3">{task.description}</p>
-                        <p className="text-sm text-muted-foreground">{task.dueDate}</p>
+                        <div className="flex gap-2 ml-4">
+                          {task.status === "Assigned" && (
+                            <Button
+                              disabled={updating === task._id}
+                              onClick={() =>
+                                handleStatusChange(task._id, getNextStatus(task.status))
+                              }
+                              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+                            >
+                              {updating === task._id ? "Updating..." : "Start Task"}
+                            </Button>
+                          )}
+                        </div>
                       </div>
-
-                      <div className="flex gap-2 ml-4">
-                        {task.actions.map((action, actionIndex) => (
-                          <Button
-                            key={actionIndex}
-                            className={`${task.actionColors[actionIndex]} text-white px-4 py-2 rounded-lg`}
-                          >
-                            {action}
-                          </Button>
-                        ))}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

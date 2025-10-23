@@ -1,5 +1,6 @@
 import LoginForm from "@/components/LoginForm";
 import Illustration from "@/assets/illustrations.jpg";
+import PortalHero from "@/components/PortalHero"
 
 const Index = () => {
   return (
@@ -38,26 +39,7 @@ const Index = () => {
       <div className="min-h-screen grid lg:grid-cols-2 relative z-10">
         {/* Left Side - Hero Section (desktop only) */}
         <div className="hidden lg:block relative px-20 py-20">
-          {/* Title + Tagline */}
-          <div className="max-w-md">
-            <h1 className="text-6xl font-extrabold text-blue-600 leading-tight mb-4">
-              Intern
-              <br />
-              Management
-              <br />
-              Portal
-            </h1>
-            <p className="text-lg text-gray-800 max-w-sm font-normal italic">
-              Streamline attendance, tasks, and reporting in one place.
-            </p>
-          </div>
-
-          {/* Illustration anchored bottom-left */}
-          <img
-  src={Illustration}
-  alt="Intern Management Illustration"
-  className="absolute bottom-0 left-10 ml-6 w-[500px] max-w-[50%] object-contain select-none pointer-events-none"
-/>
+         <PortalHero />
 
         </div>
 

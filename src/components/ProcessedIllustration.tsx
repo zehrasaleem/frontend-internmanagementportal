@@ -1,85 +1,51 @@
-import { useState, useEffect } from "react";
-import { removeBackground, loadImageFromUrl } from "@/utils/backgroundRemoval";
+"use client";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { loadImageFromUrl } from "@/utils/backgroundRemoval"; // now ONLY using loader
 
-// Using the uploaded image URL directly
-const originalImageUrl = "/lovable-uploads/65a82be0-f007-4d2d-a970-1a65e2abb64c.png";
+const ORIGINAL = "/hero/woman1.png";
 
-const ProcessedIllustration = () => {
-  const [processedImageUrl, setProcessedImageUrl] = useState<string | null>(null);
-  const [isProcessing, setIsProcessing] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+export default function ProcessedIllustration() {
+  // Show the original instantly
+  const [src, setSrc] = useState<string>(ORIGINAL);
+  const didRun = useRef(false);
+
+  // idle callback wrapper
+  const idle = useMemo(
+    () =>
+      (cb: () => void) => {
+        if ("requestIdleCallback" in window) {
+          (window as any).requestIdleCallback(cb, { timeout: 1200 });
+        } else {
+          setTimeout(cb, 0);
+        }
+      },
+    []
+  );
 
   useEffect(() => {
-    const processImage = async () => {
+    if (didRun.current) return;
+    didRun.current = true;
+
+    // OPTIONAL: later you can re-enable real background removal here
+    idle(async () => {
       try {
-        setIsProcessing(true);
-        setError(null);
-        
-        // Load the original image
-        const imageElement = await loadImageFromUrl(originalImageUrl);
-        
-        // Remove background and add blue gradient background
-        const processedBlob = await removeBackground(imageElement);
-        
-        // Create URL for the processed image
-        const url = URL.createObjectURL(processedBlob);
-        setProcessedImageUrl(url);
-      } catch (err) {
-        console.error('Failed to process image:', err);
-        setError('Failed to process image');
-        // Fallback to original image
-        setProcessedImageUrl(originalImageUrl);
-      } finally {
-        setIsProcessing(false);
+        // ensure the image loads (for future masking)
+        await loadImageFromUrl(ORIGINAL);
+        // Since we are *not* applying removeBackground now,
+        // keep ORIGINAL as src — no flicker, no blue bg.
+      } catch {
+        // If it fails, just keep ORIGINAL silently
       }
-    };
-
-    processImage();
-
-    // Cleanup function
-    return () => {
-      if (processedImageUrl && processedImageUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(processedImageUrl);
-      }
-    };
-  }, []);
-
-  if (isProcessing) {
-    return (
-      <div className="w-full max-w-md mx-auto lg:mx-0 flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Processing image...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error && !processedImageUrl) {
-    return (
-      <div className="w-full max-w-md mx-auto lg:mx-0 flex items-center justify-center h-64">
-        <div className="text-center">
-          <p className="text-destructive mb-2">Failed to load image</p>
-          <p className="text-muted-foreground text-sm">{error}</p>
-        </div>
-      </div>
-    );
-  }
+    });
+  }, [idle]);
 
   return (
     <div className="w-full max-w-md mx-auto lg:mx-0">
-      <img 
-        src={processedImageUrl || originalImageUrl}
-        alt="Intern management illustration" 
-        className="w-full h-auto object-contain rounded-lg"
+      <img
+        src={src}
+        alt="Intern management illustration"
+        className="w-full h-auto object-contain rounded-lg transition-opacity duration-300"
       />
-      {error && (
-        <p className="text-xs text-muted-foreground mt-2 text-center">
-          Using fallback image due to processing error
-        </p>
-      )}
     </div>
   );
-};
-
-export default ProcessedIllustration;
+}

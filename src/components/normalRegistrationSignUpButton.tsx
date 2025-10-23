@@ -15,7 +15,7 @@ import api from "../api/api";
 type Step = "collect" | "otp" | "profile";
 type Role = "student" | "admin";
 
-export default function NormalRegistrationSignUpButton() {
+export default function normalRegistrationSignUpButton() {
   const navigate = useNavigate();
 
   const [step, setStep] = useState<Step>("collect");
@@ -80,7 +80,6 @@ export default function NormalRegistrationSignUpButton() {
     setSaving(true);
     setMessage(null);
     try {
-      // require student-only core fields
       if (role === "student" && (!discipline || !batch || !rollNo)) {
         setMessage("Please fill discipline, batch, and roll number.");
         setSaving(false);
@@ -95,18 +94,15 @@ export default function NormalRegistrationSignUpButton() {
         batch: role === "student" ? batch : undefined,
         rollNo: role === "student" ? rollNo : undefined,
         phoneNumber,
-        // ⬇️ only send these when role is student
         semester: role === "student" ? semester : undefined,
-        dateOfJoining: role === "student" && dateOfJoining ? dateOfJoining : undefined,
+        dateOfJoining:
+          role === "student" && dateOfJoining ? dateOfJoining : undefined,
       });
 
-      // ✅ Save JWT for /auth/me interceptor
       if (data?.token) {
         localStorage.setItem("token", data.token);
       }
 
-
-      // ✅ Save user so dashboards can read name/initials
       if (data?.user) {
         localStorage.setItem("currentUser", JSON.stringify(data.user));
       }
@@ -120,10 +116,11 @@ export default function NormalRegistrationSignUpButton() {
     }
   };
 
+  // ✅ CLEAN RETURN (gap removed)
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white px-4 py-8">
-      <Card className="w-full max-w-md">
-        <CardHeader>
+    <div className="w-full">
+      <Card className="w-full max-w-md mx-auto shadow-lg border border-gray-200">
+        <CardHeader className="pb-2">
           <CardTitle className="text-xl font-semibold">
             {step === "collect" && "Create your account"}
             {step === "otp" && "Verify your email"}
@@ -131,7 +128,7 @@ export default function NormalRegistrationSignUpButton() {
           </CardTitle>
         </CardHeader>
 
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 pt-0">
           {step === "collect" && (
             <>
               <div>
@@ -225,7 +222,9 @@ export default function NormalRegistrationSignUpButton() {
               {role === "student" && (
                 <>
                   <div>
-                    <label className="block text-sm font-medium mb-1">Discipline</label>
+                    <label className="block text-sm font-medium mb-1">
+                      Discipline
+                    </label>
                     <Select value={discipline} onValueChange={setDiscipline}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select your discipline" />
@@ -250,7 +249,9 @@ export default function NormalRegistrationSignUpButton() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium mb-1">Roll Number</label>
+                    <label className="block text-sm font-medium mb-1">
+                      Roll Number
+                    </label>
                     <Input
                       value={rollNo}
                       onChange={(e) => setRollNo(e.target.value)}
@@ -261,7 +262,9 @@ export default function NormalRegistrationSignUpButton() {
               )}
 
               <div>
-                <label className="block text-sm font-medium mb-1">Phone Number</label>
+                <label className="block text-sm font-medium mb-1">
+                  Phone Number
+                </label>
                 <Input
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
@@ -269,7 +272,6 @@ export default function NormalRegistrationSignUpButton() {
                 />
               </div>
 
-              {/* ⬇️ Show only for students */}
               {role === "student" && (
                 <>
                   <div>
@@ -282,7 +284,9 @@ export default function NormalRegistrationSignUpButton() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium mb-1">Date of Joining</label>
+                    <label className="block text-sm font-medium mb-1">
+                      Date of Joining
+                    </label>
                     <Input
                       type="date"
                       value={dateOfJoining}
