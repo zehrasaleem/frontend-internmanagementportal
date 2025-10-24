@@ -7,6 +7,7 @@ import {
   Calendar,
   LogOut,
   BarChart3,
+  FolderKanban,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,7 +28,6 @@ const ProgramReports = () => {
   const [activeItem, setActiveItem] = useState("Program Reports");
   const navigate = useNavigate();
 
-  // ---- current user state ----
   const [me, setMe] = useState<CurrentUser | null>(null);
   const [loadingMe, setLoadingMe] = useState(true);
 
@@ -68,26 +68,24 @@ const ProgramReports = () => {
 
   const handleNavigation = (item: string) => {
     setActiveItem(item);
-    if (item === "Dashboard") {
-      navigate("/admin-dashboard");
-    } else if (item === "Intern Management") {
-      navigate("/intern-management");
-    } else if (item === "Task Management") {
-      navigate("/task-management");
-    } else if (item === "Attendance Reports") {
-      navigate("/attendance-reports");
-    } else if (item === "Timetable & Scheduling") {
-      navigate("/admin-timetable");
-    }
+    if (item === "Dashboard") navigate("/admin-dashboard");
+    else if (item === "Intern Management") navigate("/intern-management");
+    else if (item === "Task Management") navigate("/task-management");
+    else if (item === "Project Management") navigate("/project-management");
+    else if (item === "Attendance Reports") navigate("/attendance-reports");
+    else if (item === "Program Reports") navigate("/program-reports");
+    else if (item === "Timetable & Scheduling") navigate("/admin-timetable");
   };
 
   const sidebarItems = [
     { icon: LayoutDashboard, label: "Dashboard" },
     { icon: Users, label: "Intern Management" },
     { icon: ClipboardList, label: "Task Management" },
+    { icon: FolderKanban, label: "Project Management" },
     { icon: FileText, label: "Attendance Reports" },
-    { icon: BarChart3, label: "Program Reports", active: true },
+    { icon: BarChart3, label: "Program Reports" },
     { icon: Calendar, label: "Timetable & Scheduling" },
+
   ];
 
   const programStats = [
@@ -107,14 +105,14 @@ const ProgramReports = () => {
     },
     {
       title: "Absent Today",
-      value: "24",
+      value: "2",
       bgColor: "bg-red-50",
       iconColor: "text-red-500",
       valueColor: "text-red-600",
     },
     {
-      title: "Interns Total",
-      value: "0",
+      title: "Pending Tasks",
+      value: "6",
       bgColor: "bg-orange-50",
       iconColor: "text-orange-500",
       valueColor: "text-orange-600",
@@ -168,26 +166,26 @@ const ProgramReports = () => {
     },
     {
       task: "API Development",
-      assigned: "Ahmed, Sarah, Ali, Fatima, Omar, Zain, Hassan",
-      count: "8",
+      assigned: "Ahmed, Sarah, Zain, Hassan",
+      count: "4",
       taskColor: "text-green-600",
     },
     {
       task: "Frontend UI",
-      assigned: "Sarah, Ali, Fatima, Ayesha, Zain, Hassan",
-      count: "5",
+      assigned: "Sarah, Fatima, Ayesha, Zain",
+      count: "4",
       taskColor: "text-purple-600",
     },
     {
       task: "Testing Phase",
-      assigned: "Fatima, Omar, Ayesha, Zain",
-      count: "5",
+      assigned: "Fatima, Omar, Ayesha",
+      count: "3",
       taskColor: "text-red-600",
     },
     {
       task: "Documentation",
       assigned: "Ahmed, Sarah, Hassan",
-      count: "5",
+      count: "3",
       taskColor: "text-blue-600",
     },
   ];
@@ -196,14 +194,16 @@ const ProgramReports = () => {
     <div className="min-h-screen bg-gray-50">
       {/* Sidebar */}
       <div className="fixed left-0 top-0 h-full w-64 bg-white shadow-lg border-r border-gray-200">
-        {/* Logo Section */}
+        {/* Logo */}
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">C</span>
             </div>
             <div className="ml-3">
-              <h1 className="font-semibold text-gray-900 text-sm">CSIT Admin Dashboard</h1>
+              <h1 className="font-semibold text-gray-900 text-sm">
+                CSIT Admin Dashboard
+              </h1>
               <p className="text-xs text-gray-500">Intern Management Portal</p>
             </div>
           </div>
@@ -222,7 +222,9 @@ const ProgramReports = () => {
               }`}
             >
               <item.icon className="w-5 h-5 flex-shrink-0" />
-              <span className="ml-3 font-medium text-sm leading-tight">{item.label}</span>
+              <span className="ml-3 font-medium text-sm leading-tight">
+                {item.label}
+              </span>
             </button>
           ))}
         </nav>
@@ -230,11 +232,12 @@ const ProgramReports = () => {
 
       {/* Main Content */}
       <div className="ml-64">
-        {/* Header */}
         <header className="bg-white shadow-sm border-b border-gray-200">
           <div className="flex items-center justify-between px-6 py-4">
             <div>
-              <h1 className="text-xl font-semibold text-gray-900">Program Report</h1>
+              <h1 className="text-xl font-semibold text-gray-900">
+                Program Reports
+              </h1>
               <p className="text-xs text-gray-500">
                 {loadingMe ? "…" : me?.role === "admin" ? "Admin" : "User"}
               </p>
@@ -267,52 +270,38 @@ const ProgramReports = () => {
 
         {/* Dashboard Content */}
         <main className="p-6">
-          {/* Stats Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             {programStats.map((stat, index) => (
-              <Card
-                key={index}
-                className="border border-gray-200 hover:shadow-md transition-shadow"
-              >
+              <Card key={index} className="border border-gray-200 hover:shadow-md transition-shadow">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium text-gray-600">
                     {stat.title}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <div className={`text-2xl font-bold ${stat.valueColor} flex items-center`}>
+                  <div className={`text-2xl font-bold ${stat.valueColor}`}>
                     {stat.value}
-                    <div className={`ml-2 p-1 rounded ${stat.bgColor}`}>
-                      {index === 0 && <Users className={`w-4 h-4 ${stat.iconColor}`} />}
-                      {index === 1 && <div className="w-4 h-4 bg-green-500 rounded-full"></div>}
-                      {index === 2 && <div className="w-4 h-4 bg-red-500 rounded-full"></div>}
-                      {index === 3 && <div className="w-4 h-4 bg-orange-500 rounded-full"></div>}
-                    </div>
                   </div>
                 </CardContent>
               </Card>
             ))}
           </div>
 
-          {/* Main Content Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Interns Today */}
             <Card className="border border-gray-200">
               <CardHeader className="pb-4">
                 <CardTitle className="text-lg font-semibold text-gray-900">
-                  Interns(Today)
+                  Interns (Today)
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {/* Table Header */}
                   <div className="grid grid-cols-3 gap-4 pb-2 border-b border-gray-200">
                     <div className="text-sm font-medium text-gray-500">NAME</div>
                     <div className="text-sm font-medium text-gray-500">ATTENDANCE</div>
                     <div className="text-sm font-medium text-gray-500">TASKS</div>
                   </div>
-
-                  {/* Table Rows */}
                   {todaysInterns.map((intern, index) => (
                     <div
                       key={index}
@@ -345,13 +334,12 @@ const ProgramReports = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {/* Table Header */}
                   <div className="grid grid-cols-3 gap-4 pb-2 border-b border-gray-200">
-                    <div className="text-sm font-medium text-gray-500 col-span-2">TASKS</div>
+                    <div className="text-sm font-medium text-gray-500 col-span-2">
+                      TASKS
+                    </div>
                     <div className="text-sm font-medium text-gray-500">ASSIGNED</div>
                   </div>
-
-                  {/* Table Rows */}
                   {tasksOverview.map((task, index) => (
                     <div
                       key={index}

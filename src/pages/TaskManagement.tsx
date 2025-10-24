@@ -8,6 +8,7 @@ import {
   LogOut,
   BarChart3,
   Plus,
+  FolderKanban, // ✅ Added
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -154,16 +155,19 @@ const TaskManagement = () => {
     navigate("/");
   };
 
+  // ✅ UPDATED navigation with Project Management route
   const handleNavigation = (item: string) => {
     setActiveItem(item);
     if (item === "Dashboard") navigate("/admin-dashboard");
     else if (item === "Intern Management") navigate("/intern-management");
+    else if (item === "Task Management") navigate("/task-management");
+    else if (item === "Project Management") navigate("/project-management"); // ✅ Added
     else if (item === "Attendance Reports") navigate("/attendance-reports");
     else if (item === "Program Reports") navigate("/program-reports");
     else if (item === "Timetable & Scheduling") navigate("/admin-timetable");
   };
 
-  // ---- TaskCard with Delete & Complete ----
+  // ---- TaskCard Component ----
   const TaskCard = ({ task, status }: { task: any; status: string }) => {
     const getCardBg = () => {
       if (status.includes("Progress")) return "bg-purple-50 border-purple-200";
@@ -263,11 +267,13 @@ const TaskManagement = () => {
           </div>
         </div>
 
+        {/* ✅ Added Project Management to Sidebar */}
         <nav className="p-4 space-y-1">
           {[
             { icon: LayoutDashboard, label: "Dashboard" },
             { icon: Users, label: "Intern Management" },
-            { icon: ClipboardList, label: "Task Management", active: true },
+            { icon: ClipboardList, label: "Task Management" },
+            { icon: FolderKanban, label: "Project Management" }, // ✅ Added
             { icon: FileText, label: "Attendance Reports" },
             { icon: BarChart3, label: "Program Reports" },
             { icon: Calendar, label: "Timetable & Scheduling" },
@@ -304,7 +310,6 @@ const TaskManagement = () => {
             </div>
 
             <div className="flex items-center space-x-4">
-              {/* Create Task Modal */}
               <Dialog open={open} onOpenChange={setOpen}>
                 <Button
                   onClick={() => setOpen(true)}

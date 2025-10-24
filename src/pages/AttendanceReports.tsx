@@ -7,6 +7,7 @@ import {
   Calendar,
   LogOut,
   BarChart3,
+  FolderKanban,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -74,6 +75,8 @@ const AttendanceReports = () => {
       navigate("/intern-management");
     } else if (item === "Task Management") {
       navigate("/task-management");
+    } else if (item === "Project Management") {
+      navigate("/project-management");
     } else if (item === "Program Reports") {
       navigate("/program-reports");
     } else if (item === "Timetable & Scheduling") {
@@ -85,6 +88,7 @@ const AttendanceReports = () => {
     { icon: LayoutDashboard, label: "Dashboard" },
     { icon: Users, label: "Intern Management" },
     { icon: ClipboardList, label: "Task Management" },
+    { icon: FolderKanban, label: "Project Management" },
     { icon: FileText, label: "Attendance Reports", active: true },
     { icon: BarChart3, label: "Program Reports" },
     { icon: Calendar, label: "Timetable & Scheduling" },
@@ -149,8 +153,12 @@ const AttendanceReports = () => {
               <span className="text-white font-bold text-sm">C</span>
             </div>
             <div className="ml-3">
-              <h1 className="font-semibold text-gray-900 text-sm">CSIT Admin Dashboard</h1>
-              <p className="text-xs text-gray-500">Intern Management Portal</p>
+              <h1 className="font-semibold text-gray-900 text-sm">
+                CSIT Admin Dashboard
+              </h1>
+              <p className="text-xs text-gray-500">
+                Intern Management Portal
+              </p>
             </div>
           </div>
         </div>
@@ -168,7 +176,9 @@ const AttendanceReports = () => {
               }`}
             >
               <item.icon className="w-5 h-5 flex-shrink-0" />
-              <span className="ml-3 font-medium text-sm leading-tight">{item.label}</span>
+              <span className="ml-3 font-medium text-sm leading-tight">
+                {item.label}
+              </span>
             </button>
           ))}
         </nav>
@@ -180,7 +190,9 @@ const AttendanceReports = () => {
         <header className="bg-white shadow-sm border-b border-gray-200">
           <div className="flex items-center justify-between px-6 py-4">
             <div>
-              <h1 className="text-xl font-semibold text-gray-900">Attendance Reports</h1>
+              <h1 className="text-xl font-semibold text-gray-900">
+                Attendance Reports
+              </h1>
               <p className="text-xs text-gray-500">
                 {loadingMe ? "…" : me?.role === "admin" ? "Admin" : "User"}
               </p>
@@ -227,17 +239,26 @@ const AttendanceReports = () => {
           <div className="mb-8">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {attendanceStats.map((stat, index) => (
-                <Card key={index} className="border border-gray-200 hover:shadow-md transition-shadow">
+                <Card
+                  key={index}
+                  className="border border-gray-200 hover:shadow-md transition-shadow"
+                >
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-sm font-medium text-gray-600">
                         {stat.title}
                       </CardTitle>
-                      <div className={`w-3 h-3 rounded-full ${stat.indicatorColor}`}></div>
+                      <div
+                        className={`w-3 h-3 rounded-full ${stat.indicatorColor}`}
+                      ></div>
                     </div>
                   </CardHeader>
                   <CardContent className="pt-0">
-                    <div className={`text-2xl font-bold ${stat.valueColor}`}>{stat.value}</div>
+                    <div
+                      className={`text-2xl font-bold ${stat.valueColor}`}
+                    >
+                      {stat.value}
+                    </div>
                   </CardContent>
                 </Card>
               ))}
@@ -256,16 +277,29 @@ const AttendanceReports = () => {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-gray-200">
-                      <th className="text-left py-3 px-4 font-medium text-gray-600 text-sm">INTERN</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-600 text-sm">CHECK IN</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-600 text-sm">CHECK OUT</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-600 text-sm">HOURS</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-600 text-sm">STATUS</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-600 text-sm">
+                        INTERN
+                      </th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-600 text-sm">
+                        CHECK IN
+                      </th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-600 text-sm">
+                        CHECK OUT
+                      </th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-600 text-sm">
+                        HOURS
+                      </th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-600 text-sm">
+                        STATUS
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {attendanceData.map((record, index) => (
-                      <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
+                      <tr
+                        key={index}
+                        className="border-b border-gray-100 hover:bg-gray-50"
+                      >
                         <td className="py-4 px-4">
                           <div className="flex items-center space-x-3">
                             <Avatar className="w-8 h-8">
@@ -273,14 +307,24 @@ const AttendanceReports = () => {
                                 {record.initials}
                               </AvatarFallback>
                             </Avatar>
-                            <span className="font-medium text-gray-900 text-sm">{record.intern}</span>
+                            <span className="font-medium text-gray-900 text-sm">
+                              {record.intern}
+                            </span>
                           </div>
                         </td>
-                        <td className="py-4 px-4 text-sm text-gray-600">{record.checkIn}</td>
-                        <td className="py-4 px-4 text-sm text-gray-600">{record.checkOut}</td>
-                        <td className="py-4 px-4 text-sm text-gray-600">{record.hours}</td>
+                        <td className="py-4 px-4 text-sm text-gray-600">
+                          {record.checkIn}
+                        </td>
+                        <td className="py-4 px-4 text-sm text-gray-600">
+                          {record.checkOut}
+                        </td>
+                        <td className="py-4 px-4 text-sm text-gray-600">
+                          {record.hours}
+                        </td>
                         <td className="py-4 px-4">
-                          <Badge className={`${record.statusColor} border-0 text-xs`}>
+                          <Badge
+                            className={`${record.statusColor} border-0 text-xs`}
+                          >
                             {record.status}
                           </Badge>
                         </td>

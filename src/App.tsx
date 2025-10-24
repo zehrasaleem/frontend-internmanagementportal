@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
+// ✅ Pages
 import Index from "./pages/Index";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminTimetable from "./pages/AdminTimetable";
@@ -18,6 +19,9 @@ import TaskManagement from "./pages/TaskManagement";
 import AttendanceReports from "./pages/AttendanceReports";
 import ProgramReports from "./pages/ProgramReports";
 import NotFound from "./pages/NotFound";
+
+// ✅ New: Project Management Page
+import ProjectManagement from "./pages/ProjectManagement";
 
 // ✅ Auth screens
 import LoginForm from "./components/LoginForm";
@@ -35,7 +39,7 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           {/* Public */}
-          <Route path="/" element={<Index />} /> 
+          <Route path="/" element={<Index />} />
 
           {/* Admin */}
           <Route path="/admin-dashboard" element={<AdminDashboard />} />
@@ -51,6 +55,7 @@ const App = () => (
           {/* Program management */}
           <Route path="/intern-management" element={<InternManagement />} />
           <Route path="/task-management" element={<TaskManagement />} />
+          <Route path="/project-management" element={<ProjectManagement />} /> {/* ✅ New route */}
           <Route path="/attendance-reports" element={<AttendanceReports />} />
           <Route path="/program-reports" element={<ProgramReports />} />
 

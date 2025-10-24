@@ -10,6 +10,7 @@ import {
   ChevronDown,
   UserPlus,
   BarChart3,
+  FolderKanban,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -75,8 +76,12 @@ const InternManagement = () => {
     setActiveItem(item);
     if (item === "Dashboard") {
       navigate("/admin-dashboard");
+    } else if (item === "Intern Management") {
+      navigate("/intern-management");
     } else if (item === "Task Management") {
       navigate("/task-management");
+    } else if (item === "Project Management") {
+      navigate("/project-management"); // ✅ new route
     } else if (item === "Attendance Reports") {
       navigate("/attendance-reports");
     } else if (item === "Program Reports") {
@@ -90,6 +95,7 @@ const InternManagement = () => {
     { icon: LayoutDashboard, label: "Dashboard" },
     { icon: Users, label: "Intern Management", active: true },
     { icon: ClipboardList, label: "Task Management" },
+    { icon: FolderKanban, label: "Project Management" },
     { icon: FileText, label: "Attendance Reports" },
     { icon: BarChart3, label: "Program Reports" },
     { icon: Calendar, label: "Timetable & Scheduling" },

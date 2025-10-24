@@ -11,7 +11,7 @@ import {
   Users,
   User as UserIcon,
   CalendarDays,
-  Clock,
+  FolderKanban,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import api from "@/api/api";
@@ -31,15 +31,16 @@ const StudentTimetable = () => {
   const [me, setMe] = useState<CurrentUser | null>(null);
   const [loadingMe, setLoadingMe] = useState(true);
 
+  // Updated sidebar with Project Management option
   const sidebarItems = [
     { icon: LayoutDashboard, label: "Dashboard", path: "/student-dashboard" },
     { icon: CheckSquare, label: "My Tasks", path: "/student-tasks" },
     { icon: Users, label: "Attendance", path: "/student-attendance" },
     { icon: Calendar, label: "Timetable & Scheduling", path: "/student-timetable" },
+    { icon: FolderKanban, label: "Project Management", path: "/student-projects" },
     { icon: UserIcon, label: "Profile", path: "/student-profile" },
   ];
 
-  // Load current user from backend
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -70,22 +71,14 @@ const StudentTimetable = () => {
   }, [me?.name, me?.email]);
 
   const handleLogout = () => {
-  localStorage.removeItem("token");
-  localStorage.removeItem("currentUser");
-  navigate("/");
-};
+    localStorage.removeItem("token");
+    localStorage.removeItem("currentUser");
+    navigate("/");
+  };
 
   const handleNavigation = (path: string, label: string) => {
-    if (
-      path === "/student-dashboard" ||
-      path === "/student-tasks" ||
-      path === "/student-attendance" ||
-      path === "/student-profile"
-    ) {
-      navigate(path);
-    } else {
-      setActiveTab(label);
-    }
+    setActiveTab(label);
+    navigate(path);
   };
 
   const todaySchedule = [
@@ -103,17 +96,9 @@ const StudentTimetable = () => {
       friday: { type: "Class", color: "bg-blue-100 text-blue-800" },
     },
     {
-      time: "9:30\nAM",
-      monday: { type: "Class", color: "bg-blue-100 text-blue-800" },
-      tuesday: { type: "Free Time", color: "bg-green-100 text-green-800" },
-      wednesday: { type: "Class", color: "bg-blue-100 text-blue-800" },
-      thursday: { type: "Class", color: "bg-blue-100 text-blue-800" },
-      friday: { type: "Class", color: "bg-blue-100 text-blue-800" },
-    },
-    {
       time: "10:30\nAM",
       monday: { type: "Class", color: "bg-blue-100 text-blue-800" },
-      tuesday: { type: "Meeting Project Review", color: "bg-purple-100 text-purple-800" },
+      tuesday: { type: "Project Review", color: "bg-purple-100 text-purple-800" },
       wednesday: { type: "Class", color: "bg-blue-100 text-blue-800" },
       thursday: { type: "Free Time", color: "bg-green-100 text-green-800" },
       friday: { type: "Class", color: "bg-blue-100 text-blue-800" },
@@ -125,30 +110,6 @@ const StudentTimetable = () => {
       wednesday: { type: "Lunch Break", color: "bg-yellow-100 text-yellow-800" },
       thursday: { type: "Lunch Break", color: "bg-yellow-100 text-yellow-800" },
       friday: { type: "Lunch Break", color: "bg-yellow-100 text-yellow-800" },
-    },
-    {
-      time: "2:00\nPM",
-      monday: { type: "Class", color: "bg-blue-100 text-blue-800" },
-      tuesday: { type: "Free Time", color: "bg-green-100 text-green-800" },
-      wednesday: { type: "Class", color: "bg-blue-100 text-blue-800" },
-      thursday: { type: "Class", color: "bg-blue-100 text-blue-800" },
-      friday: { type: "Class", color: "bg-blue-100 text-blue-800" },
-    },
-    {
-      time: "2:50\nPM",
-      monday: { type: "Class", color: "bg-blue-100 text-blue-800" },
-      tuesday: { type: "Free Time", color: "bg-green-100 text-green-800" },
-      wednesday: { type: "Class", color: "bg-blue-100 text-blue-800" },
-      thursday: { type: "Class", color: "bg-blue-100 text-blue-800" },
-      friday: { type: "Class", color: "bg-blue-100 text-blue-800" },
-    },
-    {
-      time: "3:40\nPM",
-      monday: { type: "Class", color: "bg-blue-100 text-blue-800" },
-      tuesday: { type: "Free Time", color: "bg-green-100 text-green-800" },
-      wednesday: { type: "Class", color: "bg-blue-100 text-blue-800" },
-      thursday: { type: "Class", color: "bg-blue-100 text-blue-800" },
-      friday: { type: "Class", color: "bg-blue-100 text-blue-800" },
     },
     {
       time: "4:30\nPM",
@@ -236,12 +197,10 @@ const StudentTimetable = () => {
         {/* Main Content */}
         <div className="flex-1 p-6 bg-gray-50">
           <div className="max-w-7xl mx-auto">
-            {/* Page Title */}
             <h2 className="text-2xl font-bold text-foreground mb-6">My Timetable & Schedule</h2>
 
-            {/* Top Section - Quick Actions and Today's Schedule */}
+            {/* Quick Actions & Today's Schedule */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-              {/* Quick Actions */}
               <Card className="bg-white border border-border">
                 <CardHeader>
                   <CardTitle className="text-lg font-semibold text-foreground">Quick Actions</CardTitle>
@@ -254,7 +213,6 @@ const StudentTimetable = () => {
                 </CardContent>
               </Card>
 
-              {/* Today's Schedule */}
               <Card className="bg-white border border-border">
                 <CardHeader>
                   <CardTitle className="text-lg font-semibold text-foreground">Today's Schedule</CardTitle>
