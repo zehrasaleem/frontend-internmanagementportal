@@ -1,20 +1,15 @@
-// client/src/components/googleSignUp.tsx
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
-import {
-  Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
-} from "@/components/ui/form";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { User as UserIcon, GraduationCap, Users, Hash, BookOpen } from "lucide-react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import api from "../api/api";
+import { useNavigate } from "react-router-dom";
+import { completeGoogleSignup, completeNormalSignup } from "../api/api";
 
 const formSchema = z.object({
   fullName: z.string().min(2, "Full name must be at least 2 characters"),
@@ -32,43 +27,27 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
-const GoogleSignupForm: React.FC<{ onSubmit?: (d: FormData) => void; onCancel?: () => void; }> = ({ onSubmit, onCancel }) => {
+const GoogleSignupForm: React.FC<{ onSubmit?: (d: FormData) => void; onCancel?: () => void }> = ({ onSubmit, onCancel }) => {
   const [selectedRole, setSelectedRole] = useState<"student" | "admin">("student");
-  const [email, setEmail] = useState("");
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      fullName: "", role: "student", discipline: "", batch: "", rollNo: "",
-      phoneNumber: "", semester: "", dateOfJoining: "",
+      fullName: "",
+      role: "student",
+      discipline: "",
+      batch: "",
+      rollNo: "",
+      phoneNumber: "",
+      semester: "",
+      dateOfJoining: "",
     },
   });
 
-  // Prefill name/email from cookie (Google flow)
-  useEffect(() => {
-    const emailFromQuery = searchParams.get("email");
-    if (emailFromQuery) {
-      setEmail(emailFromQuery);
-      return;
-    }
-    (async () => {
-      try {
-        const { data } = await api.get("/auth/google/signup-info");
-        form.setValue("fullName", data.name || "");
-        setEmail(data.email || "");
-      } catch {
-        // cookie missing/expired — let user fill manually
-      }
-    })();
-  }, [form, searchParams]);
-
   const handleSubmit = async (data: FormData) => {
     try {
-      const hasEmailFromQuery = !!searchParams.get("email");
-
-      const payloadBase = {
+      const payload = {
         fullName: data.fullName,
         role: data.role,
         discipline: data.role === "student" ? data.discipline : undefined,
@@ -79,30 +58,19 @@ const GoogleSignupForm: React.FC<{ onSubmit?: (d: FormData) => void; onCancel?: 
         dateOfJoining: data.role === "student" && data.dateOfJoining ? data.dateOfJoining : undefined,
       };
 
-      const res = await api.post(
-        hasEmailFromQuery ? "/auth/register/complete" : "/auth/google/complete",
-        hasEmailFromQuery ? { email, ...payloadBase } : payloadBase
-      );
+      console.log("Submitting Google signup payload:", payload);
 
-      // Save token returned by backend (now always present)
+      const res = await completeGoogleSignup(payload, { withCredentials: true });
+      console.log("Server response:", res.data);
+
       if (res.data?.token) localStorage.setItem("token", res.data.token);
+      if (res.data?.user) localStorage.setItem("currentUser", JSON.stringify(res.data.user));
 
-      // Decide role
-      const serverUser = res.data?.user;
-      const resolvedRole: "admin" | "student" =
-        serverUser?.role ?? res.data?.role ?? data.role ?? "student";
-
-      // Save user for display
-      const userToStore = serverUser ?? { name: data.fullName, email, role: resolvedRole };
-      localStorage.setItem("currentUser", JSON.stringify(userToStore));
-
-      // Navigate based on role
-      navigate(resolvedRole === "admin" ? "/admin-dashboard" : "/student-dashboard", { replace: true });
-
+      navigate(res.data.user.role === "admin" ? "/admin-dashboard" : "/student-dashboard", { replace: true });
       onSubmit?.(data);
-    } catch (e: any) {
-      console.error("Registration failed:", e?.response?.data || e.message);
-      alert(e?.response?.data?.message || "Something went wrong. Please try again.");
+    } catch (err: any) {
+      console.error("Registration failed:", err);
+      alert("Registration failed: " + (err?.response?.data?.message || err.message));
     }
   };
 
@@ -120,14 +88,13 @@ const GoogleSignupForm: React.FC<{ onSubmit?: (d: FormData) => void; onCancel?: 
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-form-background p-4">
-      <Card className="w-full max-w-md shadow-lg border-form-border">
+      <Card className="w-full max-w-lg shadow-lg border-form-border">
         <CardHeader className="text-center space-y-2">
           <div className="mx-auto w-12 h-12 bg-primary rounded-full flex items-center justify-center mb-2">
             <UserIcon className="w-6 h-6 text-primary-foreground" />
           </div>
           <CardTitle className="text-2xl font-semibold text-foreground">Complete Your Profile</CardTitle>
           <p className="text-muted-foreground text-sm">Please provide additional information to complete your registration</p>
-          {email && <p className="text-sm text-muted-foreground -mt-1">Signed in as <span className="font-medium">{email}</span></p>}
         </CardHeader>
 
         <CardContent className="space-y-6">
@@ -137,8 +104,7 @@ const GoogleSignupForm: React.FC<{ onSubmit?: (d: FormData) => void; onCancel?: 
               <FormField control={form.control} name="fullName" render={({ field }) => (
                 <FormItem>
                   <FormLabel className="flex items-center gap-2 text-sm font-medium text-foreground">
-                    <UserIcon className="w-4 h-4" />
-                    Full Name <span className="text-form-error">*</span>
+                    <UserIcon className="w-4 h-4" /> Full Name <span className="text-form-error">*</span>
                   </FormLabel>
                   <FormControl>
                     <Input {...field} placeholder="Enter your full name" className="h-11 border-form-border focus:border-form-focus" />
