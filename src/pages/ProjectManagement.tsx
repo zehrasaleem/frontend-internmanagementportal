@@ -3,6 +3,7 @@ import {
   fetchProjects,
   createProject,
   assignProject,
+  unassignProject,
   deleteProject,
   updateProject,
 } from "../api/projects";
@@ -37,6 +38,7 @@ interface Project {
   status?: string;
   createdAt?: string;
   dueDate?: string;
+  teamLead?: Student | null;
   assignedTo?: Student[];
 }
 
@@ -44,6 +46,7 @@ const ProjectManagement: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<string>("");
+  const [teamLead, setTeamLead] = useState<string>(""); // only _id string
   const [showModal, setShowModal] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [title, setTitle] = useState("");
@@ -52,7 +55,7 @@ const ProjectManagement: React.FC = () => {
   const [status, setStatus] = useState("Active");
   const [date, setDate] = useState<string>("");
   const [me, setMe] = useState<any>(null);
-  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null); // ✅ NEW STATE
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
   const colorOptions = [
     "#3b82f6",
@@ -70,7 +73,6 @@ const ProjectManagement: React.FC = () => {
     fetchStudents();
     fetchMe();
 
-    // ✅ close dropdown on outside click
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       if (!target.closest(".dropdown-container")) setOpenDropdownId(null);
@@ -106,46 +108,48 @@ const ProjectManagement: React.FC = () => {
     }
   };
 
-  const handleCreateProject = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim()) return alert("Please enter a project title!");
-
-    const projectData: Project = {
-      title,
-      description,
-      color,
-      status,
-      createdAt: date ? new Date(date).toISOString() : new Date().toISOString(),
-    };
-
-    try {
-      if (editingProject) {
-        const res = await updateProject(editingProject._id!, projectData);
-        setProjects((prev) =>
-          prev.map((p) => (p._id === editingProject._id ? res.data : p))
-        );
-        setEditingProject(null);
-      } else {
-        const res = await createProject(projectData);
-        const newProject = res.data || res;
-        setProjects((prev) => [newProject, ...prev]);
-      }
-
-      setShowModal(false);
-      resetForm();
-    } catch (err) {
-      console.error("❌ Error saving project:", err);
-      alert("Failed to save project. Please check console for details.");
-    }
-  };
-
   const resetForm = () => {
     setTitle("");
     setDescription("");
     setColor("#3b82f6");
     setStatus("Active");
     setDate("");
+    setTeamLead("");
     setEditingProject(null);
+  };
+
+  const handleCreateProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim()) return alert("Please enter a project title!");
+
+    const projectPayload = {
+      title,
+      description,
+      color,
+      status,
+      createdAt: date ? new Date(date).toISOString() : new Date().toISOString(),
+      teamLead: teamLead || null, // only _id string or null
+    };
+
+    try {
+      if (editingProject) {
+        const res = await updateProject(editingProject._id!, projectPayload);
+        setProjects((prev) =>
+          prev.map((p) => (p._id === editingProject._id ? res.data : p))
+        );
+        setEditingProject(null);
+      } else {
+        const res = await createProject(projectPayload);
+        const newProject = (res as any).data || res;
+        setProjects((prev) => [newProject, ...prev]);
+      }
+
+      setShowModal(false);
+      resetForm();
+    } catch (err: any) {
+      console.error("❌ Full API error:", err.response?.data || err);
+      alert("Failed to save project. Please check console for details.");
+    }
   };
 
   const handleEditProject = (project: Project) => {
@@ -159,21 +163,34 @@ const ProjectManagement: React.FC = () => {
         ? new Date(project.createdAt).toISOString().split("T")[0]
         : ""
     );
+    setTeamLead(project.teamLead?._id || "");
     setShowModal(true);
   };
 
   const onAssign = async (projectId: string) => {
-    if (!selectedStudent) return alert("Please choose a student before assigning.");
+    if (!selectedStudent)
+      return alert("Please choose a student before assigning.");
     try {
       await assignProject(projectId, selectedStudent);
-      fetchAllProjects();
+      await fetchAllProjects();
+      setSelectedStudent("");
     } catch (err) {
       console.error("❌ Error assigning student:", err);
     }
   };
 
+  const onUnassign = async (projectId: string, userId: string) => {
+    try {
+      await unassignProject(projectId, userId);
+      await fetchAllProjects();
+    } catch (err) {
+      console.error("❌ Error unassigning student:", err);
+    }
+  };
+
   const onDelete = async (id: string) => {
-    if (!window.confirm("Are you sure you want to delete this project?")) return;
+    if (!window.confirm("Are you sure you want to delete this project?"))
+      return;
     try {
       await deleteProject(id);
       setProjects((prev) => prev.filter((p) => p._id !== id));
@@ -186,16 +203,6 @@ const ProjectManagement: React.FC = () => {
     localStorage.removeItem("token");
     window.location.href = "/login";
   };
-
-  const sidebarItems = [
-    { icon: LayoutDashboard, label: "Dashboard", path: "/admin-dashboard" },
-    { icon: Users, label: "Intern Management", path: "/intern-management" },
-    { icon: ClipboardList, label: "Task Management", path: "/task-management" },
-    { icon: FolderKanban, label: "Project Management", path: "/project-management" },
-    { icon: FileText, label: "Attendance Reports", path: "/attendance-reports" },
-    { icon: BarChart3, label: "Program Reports", path: "/program-reports" },
-    { icon: CalendarIcon, label: "Timetable & Scheduling", path: "/admin-timetable" },
-  ];
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -216,7 +223,15 @@ const ProjectManagement: React.FC = () => {
         </div>
 
         <nav className="p-4 space-y-1">
-          {sidebarItems.map((item) => (
+          {[
+            { icon: LayoutDashboard, label: "Dashboard", path: "/admin-dashboard" },
+            { icon: Users, label: "Intern Management", path: "/intern-management" },
+            { icon: ClipboardList, label: "Task Management", path: "/task-management" },
+            { icon: FolderKanban, label: "Project Management", path: "/project-management" },
+            { icon: FileText, label: "Attendance Reports", path: "/attendance-reports" },
+            { icon: BarChart3, label: "Program Reports", path: "/program-reports" },
+            { icon: CalendarIcon, label: "Timetable & Scheduling", path: "/admin-timetable" },
+          ].map((item) => (
             <a
               key={item.label}
               href={item.path}
@@ -235,6 +250,7 @@ const ProjectManagement: React.FC = () => {
 
       {/* Main */}
       <div className="flex-1 ml-64">
+        {/* Header */}
         <header className="bg-white border-b border-gray-200 shadow-sm">
           <div className="flex items-center justify-between px-6 py-4">
             <div>
@@ -269,6 +285,7 @@ const ProjectManagement: React.FC = () => {
         </header>
 
         <main className="p-8">
+          {/* Top section */}
           <div className="flex justify-between items-center mb-8">
             <h3 className="text-lg font-semibold text-gray-800">
               Manage Your Projects
@@ -284,6 +301,7 @@ const ProjectManagement: React.FC = () => {
             </button>
           </div>
 
+          {/* Projects Grid */}
           {projects.length === 0 ? (
             <p className="text-gray-500 text-sm">No projects yet.</p>
           ) : (
@@ -293,6 +311,7 @@ const ProjectManagement: React.FC = () => {
                   key={p._id || p.title}
                   className="bg-white border rounded-2xl p-5 shadow-sm hover:shadow-md transition"
                 >
+                  {/* Title & Status */}
                   <div className="flex justify-between items-start relative">
                     <div>
                       <h3 className="text-lg font-semibold text-gray-800">
@@ -303,7 +322,7 @@ const ProjectManagement: React.FC = () => {
                       </span>
                     </div>
 
-                    {/* Dropdown Menu - FIXED */}
+                    {/* Dropdown */}
                     <div
                       className="relative dropdown-container"
                       onClick={(e) => e.stopPropagation()}
@@ -311,9 +330,7 @@ const ProjectManagement: React.FC = () => {
                       <MoreVertical
                         className="text-gray-400 cursor-pointer"
                         onClick={() =>
-                          setOpenDropdownId(
-                            openDropdownId === p._id ? null : p._id!
-                          )
+                          setOpenDropdownId(openDropdownId === p._id ? null : p._id!)
                         }
                       />
                       {openDropdownId === p._id && (
@@ -341,23 +358,41 @@ const ProjectManagement: React.FC = () => {
                     </div>
                   </div>
 
+                  {/* Description */}
                   <p className="text-gray-600 mt-3 text-sm">
                     {p.description || "No description"}
                   </p>
-
                   <p className="text-xs text-gray-500 mt-2">
                     📅 Created:{" "}
-                    {p.createdAt
-                      ? new Date(p.createdAt).toLocaleDateString()
-                      : "N/A"}
+                    {p.createdAt ? new Date(p.createdAt).toLocaleDateString() : "N/A"}
                   </p>
 
-                  <div className="mt-4">
-                    <p className="font-medium text-gray-700">Assigned:</p>
+                  {/* Team Lead */}
+                  <div className="mt-3">
+                    <p className="font-medium text-gray-700">Team Lead:</p>
+                    <p className="text-sm text-gray-600">
+                      {p.teamLead ? p.teamLead.name || p.teamLead.email : "Not assigned"}
+                    </p>
+                  </div>
+
+                  {/* Assigned Students */}
+                  <div className="mt-3">
+                    <p className="font-medium text-gray-700">Assigned Members:</p>
                     <ul className="text-sm text-gray-600 mt-1">
                       {p.assignedTo && p.assignedTo.length > 0 ? (
                         p.assignedTo.map((s) => (
-                          <li key={s._id}>• {s.name || s.email}</li>
+                          <li
+                            key={s._id}
+                            className="flex justify-between items-center"
+                          >
+                            <span>• {s.name || s.email}</span>
+                            <button
+                              onClick={() => onUnassign(p._id!, s._id)}
+                              className="text-red-500 text-xs hover:underline"
+                            >
+                              Remove
+                            </button>
+                          </li>
                         ))
                       ) : (
                         <li>No members assigned</li>
@@ -365,6 +400,7 @@ const ProjectManagement: React.FC = () => {
                     </ul>
                   </div>
 
+                  {/* Assign Dropdown */}
                   <div className="mt-3 flex gap-2">
                     <select
                       className="border rounded-lg px-2 py-1 flex-1 text-sm"
@@ -397,7 +433,7 @@ const ProjectManagement: React.FC = () => {
                 <button
                   onClick={() => {
                     setShowModal(false);
-                    setEditingProject(null);
+                    resetForm();
                   }}
                   className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
                 >
@@ -409,6 +445,7 @@ const ProjectManagement: React.FC = () => {
                 </h3>
 
                 <form onSubmit={handleCreateProject} className="space-y-4">
+                  {/* Project Name */}
                   <div>
                     <label className="text-sm font-medium">Project Name *</label>
                     <input
@@ -419,6 +456,7 @@ const ProjectManagement: React.FC = () => {
                     />
                   </div>
 
+                  {/* Description */}
                   <div>
                     <label className="text-sm font-medium">Description</label>
                     <textarea
@@ -428,6 +466,7 @@ const ProjectManagement: React.FC = () => {
                     />
                   </div>
 
+                  {/* Date */}
                   <div>
                     <label className="text-sm font-medium">Created Date *</label>
                     <input
@@ -439,6 +478,7 @@ const ProjectManagement: React.FC = () => {
                     />
                   </div>
 
+                  {/* Color */}
                   <div>
                     <label className="text-sm font-medium">Color</label>
                     <div className="flex gap-2 mt-2 flex-wrap">
@@ -456,6 +496,7 @@ const ProjectManagement: React.FC = () => {
                     </div>
                   </div>
 
+                  {/* Status */}
                   <div>
                     <label className="text-sm font-medium">Status</label>
                     <select
@@ -469,12 +510,29 @@ const ProjectManagement: React.FC = () => {
                     </select>
                   </div>
 
+                  {/* Team Lead */}
+                  <div>
+                    <label className="text-sm font-medium">Team Lead</label>
+                    <select
+                      value={teamLead}
+                      onChange={(e) => setTeamLead(e.target.value)}
+                      className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
+                    >
+                      <option value="">Select Team Lead</option>
+                      {students.map((s) => (
+                        <option key={s._id} value={s._id}>
+                          {s.name || s.email}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
                   <div className="flex justify-end gap-3 mt-4">
                     <button
                       type="button"
                       onClick={() => {
                         setShowModal(false);
-                        setEditingProject(null);
+                        resetForm();
                       }}
                       className="px-4 py-2 text-gray-600 hover:text-gray-800"
                     >
