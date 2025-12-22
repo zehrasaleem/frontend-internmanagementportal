@@ -1,4 +1,3 @@
-// client/src/pages/StudentDashboard.tsx
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -26,13 +25,6 @@ type CurrentUser = {
   email: string;
   role: "student" | "admin";
   picture?: string;
-  // optional student fields:
-  discipline?: string;
-  batch?: string;
-  rollNo?: string;
-  phoneNumber?: string;
-  semester?: string;
-  dateOfJoining?: string;
 };
 
 const StudentDashboard = () => {
@@ -42,39 +34,68 @@ const StudentDashboard = () => {
   const [me, setMe] = useState<CurrentUser | null>(null);
   const [loadingMe, setLoadingMe] = useState(true);
 
-  // Fetch the signed-in user from backend
+  // ✅ REAL TEAM LEAD FLAG (from backend)
+  const [isTeamLead, setIsTeamLead] = useState(false);
+
+  /* ---------------- Fetch logged-in user ---------------- */
   useEffect(() => {
     let mounted = true;
+
     (async () => {
       try {
         const { data } = await api.get("/auth/me");
         if (!mounted) return;
         setMe(data.user);
-      } catch (e: any) {
-        // If token missing/expired → send to login
+      } catch {
         navigate("/login");
       } finally {
         if (mounted) setLoadingMe(false);
       }
     })();
+
     return () => {
       mounted = false;
     };
   }, [navigate]);
 
+  /* ---------------- Check if user is team lead ---------------- */
+  useEffect(() => {
+    if (!me?._id) return;
+
+    let mounted = true;
+
+    (async () => {
+      try {
+        const res = await api.get("/projects/my/lead-projects");
+        if (mounted) {
+          setIsTeamLead(Array.isArray(res.data) && res.data.length > 0);
+        }
+      } catch {
+        if (mounted) setIsTeamLead(false);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [me]);
+
   const displayName =
     me?.name || (me?.email ? me.email.split("@")[0] : "Student");
 
-  const firstName = useMemo(() => displayName.split(/\s+/)[0] ?? "Student", [displayName]);
+  const firstName = useMemo(
+    () => displayName.split(/\s+/)[0] ?? "Student",
+    [displayName]
+  );
 
-  // Compute initials like "AA" from "Ahmed Ali" or email local-part
   const initials = useMemo(() => {
     const base = (me?.name || me?.email || "NA").trim();
-    if (!base) return "NA";
     const parts = base.split(/[ ._@-]+/).filter(Boolean);
-    const first = parts[0]?.[0] ?? "";
-    const last = parts.length > 1 ? parts[parts.length - 1][0] : "";
-    return (first + last).toUpperCase() || "NA";
+    return (
+      ((parts[0]?.[0] || "") +
+        (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase() ||
+      "NA"
+    );
   }, [me?.name, me?.email]);
 
   const sidebarItems = [
@@ -86,29 +107,29 @@ const StudentDashboard = () => {
   ];
 
   const handleNavigation = (path: string, label: string) => {
-    if (
-      path === "/student-tasks" ||
-      path === "/student-attendance" ||
-      path === "/student-timetable" ||
-      path === "/student-profile"
-    ) {
-      navigate(path);
-    } else {
-      setActiveTab(label);
-    }
+    if (path !== "/student-dashboard") navigate(path);
+    else setActiveTab(label);
   };
 
-const handleLogout = () => {
-  localStorage.removeItem("token");
-  localStorage.removeItem("currentUser");
-  navigate("/");
-};
-
-
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("currentUser");
+    navigate("/");
+  };
 
   const todaysTasks = [
-    { title: "Database Design Review", dueTime: "Due: 5:00 PM", status: "In Progress", statusColor: "bg-orange-100 text-orange-800" },
-    { title: "API Testing", dueTime: "Due: Tomorrow", status: "Assigned", statusColor: "bg-blue-100 text-blue-800" },
+    {
+      title: "Database Design Review",
+      dueTime: "Due: 5:00 PM",
+      status: "In Progress",
+      statusColor: "bg-orange-100 text-orange-800",
+    },
+    {
+      title: "API Testing",
+      dueTime: "Due: Tomorrow",
+      status: "Assigned",
+      statusColor: "bg-blue-100 text-blue-800",
+    },
   ];
 
   return (
@@ -120,7 +141,9 @@ const handleLogout = () => {
             <UserIcon className="w-5 h-5 text-primary-foreground" />
           </div>
           <div>
-            <h1 className="text-lg font-semibold text-foreground">Student Dashboard</h1>
+            <h1 className="text-lg font-semibold text-foreground">
+              Student Dashboard
+            </h1>
             <p className="text-sm text-muted-foreground">
               CS&IT Internship Program
             </p>
@@ -133,7 +156,7 @@ const handleLogout = () => {
               {loadingMe ? "Loading..." : displayName}
             </span>
             <Avatar className="h-8 w-8">
-              <AvatarImage src={me?.picture || ""} alt={displayName} />
+              <AvatarImage src={me?.picture || ""} />
               <AvatarFallback className="bg-primary text-primary-foreground text-xs">
                 {initials}
               </AvatarFallback>
@@ -150,7 +173,7 @@ const handleLogout = () => {
 
       <div className="flex">
         {/* Sidebar */}
-        <div className="w-64 bg-white border-r border-border min-h-screen">
+        <aside className="w-64 bg-white border-r border-border min-h-screen">
           <nav className="p-4 space-y-2">
             {sidebarItems.map((item) => (
               <button
@@ -162,108 +185,128 @@ const handleLogout = () => {
                     : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                 }`}
               >
-                <item.icon className="w-5 h-5 flex-shrink-0" />
-                <span className="font-medium text-sm leading-tight">{item.label}</span>
+                <item.icon className="w-5 h-5" />
+                <span className="font-medium text-sm">{item.label}</span>
               </button>
             ))}
           </nav>
-        </div>
+        </aside>
 
         {/* Main Content */}
-        <div className="flex-1 p-6 bg-gray-50">
-          <div className="max-w-7xl mx-auto">
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold text-foreground mb-6">
-                {loadingMe ? "Welcome…" : `Welcome ${firstName}!`}
-              </h2>
+        <main className="flex-1 p-6 bg-gray-50">
+          <h2 className="text-2xl font-bold mb-6">
+            {loadingMe ? "Welcome…" : `Welcome ${firstName}!`}
+          </h2>
 
-              {/* Stats Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <Card className="bg-white border border-border">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground mb-2">Task Completed</p>
-                        <p className="text-3xl font-bold text-foreground">8</p>
-                      </div>
-                      <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                        <CheckCircle2 className="w-6 h-6 text-green-600" />
-                      </div>
+          {/* -------- STATS / TEAM LEAD CTA (UI UNCHANGED) -------- */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            {isTeamLead ? (
+              <Card
+                onClick={() => navigate("/teamlead-dashboard")}
+                className="md:col-span-2 bg-purple-600 text-white cursor-pointer hover:bg-purple-700 transition border-0"
+              >
+                <CardContent className="p-6 h-full flex items-center justify-between">
+                  <div>
+                    <p className="text-sm opacity-90 mb-2">
+                      Team Lead Access
+                    </p>
+                    <p className="text-2xl font-bold">
+                      Go to Team Lead Dashboard
+                    </p>
+                  </div>
+                  <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center">
+                    <ClipboardList className="w-7 h-7 text-white" />
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                <Card>
+                  <CardContent className="p-6 flex justify-between items-center">
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        Task Completed
+                      </p>
+                      <p className="text-3xl font-bold">8</p>
+                    </div>
+                    <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                      <CheckCircle2 className="w-6 h-6 text-green-600" />
                     </div>
                   </CardContent>
                 </Card>
 
-                <Card className="bg-white border border-border">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground mb-2">Pending Tasks</p>
-                        <p className="text-3xl font-bold text-foreground">4</p>
-                      </div>
-                      <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
-                        <Clock className="w-6 h-6 text-orange-600" />
-                      </div>
+                <Card>
+                  <CardContent className="p-6 flex justify-between items-center">
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        Pending Tasks
+                      </p>
+                      <p className="text-3xl font-bold">4</p>
+                    </div>
+                    <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+                      <Clock className="w-6 h-6 text-orange-600" />
                     </div>
                   </CardContent>
                 </Card>
+              </>
+            )}
 
-                <Card className="bg-white border border-border">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground mb-2">Timetable</p>
-                        <Button variant="link" className="text-blue-600 hover:text-blue-700 p-0 h-auto font-medium">
-                          View Schedule
-                        </Button>
-                      </div>
-                      <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                        <CalendarDays className="w-6 h-6 text-blue-600" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Main Content Grid */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Today's Tasks */}
-                <Card className="bg-white border border-border">
-                  <CardHeader>
-                    <CardTitle className="text-lg font-semibold text-foreground">Today's Tasks</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {todaysTasks.map((task, index) => (
-                      <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                        <div className="flex-1">
-                          <h4 className="font-medium text-foreground mb-1">{task.title}</h4>
-                          <p className="text-sm text-muted-foreground">{task.dueTime}</p>
-                        </div>
-                        <Badge className={`${task.statusColor} border-0`}>{task.status}</Badge>
-                      </div>
-                    ))}
-                  </CardContent>
-                </Card>
-
-                {/* Quick Actions */}
-                <Card className="bg-white border border-border">
-                  <CardHeader>
-                    <CardTitle className="text-lg font-semibold text-foreground">Quick Actions</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <Button className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg">
-                      <CheckCircle2 className="w-5 h-5 mr-2" />
-                      Mark Attendance
-                    </Button>
-                    <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg">
-                      <ClipboardList className="w-5 h-5 mr-2" />
-                      View All Tasks
-                    </Button>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
+            <Card>
+              <CardContent className="p-6 flex justify-between items-center">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Timetable
+                  </p>
+                  <Button variant="link" className="p-0 text-blue-600">
+                    View Schedule
+                  </Button>
+                </div>
+                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                  <CalendarDays className="w-6 h-6 text-blue-600" />
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        </div>
+
+          {/* -------- MAIN GRID -------- */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <Card>
+              <CardHeader>
+                <CardTitle>Today's Tasks</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {todaysTasks.map((task, i) => (
+                  <div
+                    key={i}
+                    className="flex justify-between items-center p-4 bg-gray-100 rounded-lg"
+                  >
+                    <div>
+                      <h4 className="font-medium">{task.title}</h4>
+                      <p className="text-sm text-muted-foreground">
+                        {task.dueTime}
+                      </p>
+                    </div>
+                    <Badge className={task.statusColor}>{task.status}</Badge>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Quick Actions</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Button className="w-full bg-green-600 hover:bg-green-700 text-white">
+                  Mark Attendance
+                </Button>
+                <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+                  View All Tasks
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </main>
       </div>
     </div>
   );

@@ -5,8 +5,12 @@ import axios, {
   InternalAxiosRequestConfig,
   AxiosHeaders,
   AxiosRequestHeaders,
+  AxiosRequestConfig,
 } from "axios";
 
+/* ------------------------------------------------------------
+   🔹 One-off task approval request (unchanged)
+------------------------------------------------------------ */
 export const requestTaskApproval = async (taskId: string) => {
   const token = localStorage.getItem("token");
   return axios.put(
@@ -15,39 +19,39 @@ export const requestTaskApproval = async (taskId: string) => {
     { headers: { Authorization: `Bearer ${token}` } }
   );
 };
-// ------------------------------------------------------------
-// ✅ Create base Axios instance
-// ------------------------------------------------------------
+
+/* ------------------------------------------------------------
+   ✅ Create base Axios instance
+------------------------------------------------------------ */
 const api: AxiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_URL ?? "http://localhost:5000/api",
-  withCredentials: true, // send cookies automatically
+  withCredentials: true,
 });
 
-// ------------------------------------------------------------
-// ✅ Attach JWT token to every request (TS-safe)
-// ------------------------------------------------------------
+/* ------------------------------------------------------------
+   ✅ Attach JWT token to every request (TS-safe)
+------------------------------------------------------------ */
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = localStorage.getItem("token");
 
   if (token) {
-    let headers: AxiosRequestHeaders;
-
     if (config.headers instanceof AxiosHeaders) {
       config.headers.set("Authorization", `Bearer ${token}`);
-      return config;
+    } else {
+      const headers = new AxiosHeaders(
+        config.headers as Record<string, string> | undefined
+      );
+      headers.set("Authorization", `Bearer ${token}`);
+      config.headers = headers;
     }
-
-    headers = new AxiosHeaders(config.headers as Record<string, string> | undefined);
-    headers.set("Authorization", `Bearer ${token}`);
-    config.headers = headers;
   }
 
   return config;
 });
 
-// ------------------------------------------------------------
-// ✅ Handle Unauthorized Responses
-// ------------------------------------------------------------
+/* ------------------------------------------------------------
+   ✅ Handle Unauthorized Responses
+------------------------------------------------------------ */
 api.interceptors.response.use(
   (res) => res,
   (err: AxiosError) => {
@@ -59,19 +63,18 @@ api.interceptors.response.use(
   }
 );
 
-// ------------------------------------------------------------
-// ✅ USER API Endpoints
-// ------------------------------------------------------------
+/* ------------------------------------------------------------
+   ✅ USER API Endpoints
+------------------------------------------------------------ */
 export const fetchUsers = async () => {
   const res = await api.get("/users");
   return res.data;
 };
 
-// ------------------------------------------------------------
-// ✅ TASK API Endpoints
-// ------------------------------------------------------------
+/* ------------------------------------------------------------
+   ✅ TASK API Endpoints
+------------------------------------------------------------ */
 export const createTask = (taskData: any) => api.post("/tasks", taskData);
-
 
 export const fetchTasks = () => api.get("/tasks");
 
@@ -87,10 +90,9 @@ export const deleteTask = (taskId: string) =>
 export const updateTaskProgress = (taskId: string, progress: number) =>
   api.put(`/tasks/${taskId.trim()}/progress`, { progress });
 
-
-// ------------------------------------------------------------
-// ✅ PROJECT API Endpoints
-// ------------------------------------------------------------
+/* ------------------------------------------------------------
+   ✅ PROJECT API Endpoints
+------------------------------------------------------------ */
 export const getProjects = () => api.get("/projects");
 
 export const createProject = (data: any) => api.post("/projects", data);
@@ -104,12 +106,11 @@ export const deleteProject = (id: string) =>
 export const getProjectById = (id: string) =>
   api.get(`/projects/${id.trim()}`);
 
-// ------------------------------------------------------------
-// ✅ GOOGLE SIGNUP Endpoints (TS-safe)
-// ------------------------------------------------------------
-import { AxiosRequestConfig } from "axios";
+/* ------------------------------------------------------------
+   ✅ GOOGLE SIGNUP (🚨 FIXED)
+------------------------------------------------------------ */
 
-// Optional payload type (adjust fields if needed)
+// Payload type
 interface GoogleSignupPayload {
   fullName: string;
   role: "student" | "admin";
@@ -121,31 +122,29 @@ interface GoogleSignupPayload {
   dateOfJoining?: string;
 }
 
-// Fetch initial signup info from Google
+// Fetch signup info
 export const getGoogleSignupInfo = async () => {
   const res = await api.get("/google/signup-info");
   return res.data;
 };
 
-// Complete Google signup
-export const completeGoogleSignup = async (
+// 🔥 FIX: return FULL Axios response
+export const completeGoogleSignup = (
   payload: GoogleSignupPayload,
   config?: AxiosRequestConfig
 ) => {
-  const res = await api.post("/google/complete", payload, config);
-  return res.data;
+  return api.post("/google/complete", payload, config);
 };
 
-// Complete normal signup
-export const completeNormalSignup = async (
+// 🔥 FIX: return FULL Axios response
+export const completeNormalSignup = (
   payload: GoogleSignupPayload,
   config?: AxiosRequestConfig
 ) => {
-  const res = await api.post("/auth/register/complete", payload, config);
-  return res.data;
+  return api.post("/auth/register/complete", payload, config);
 };
 
-// ------------------------------------------------------------
-// ✅ Default export
-// ------------------------------------------------------------
+/* ------------------------------------------------------------
+   ✅ Default export
+------------------------------------------------------------ */
 export default api;

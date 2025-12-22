@@ -28,6 +28,7 @@ interface Student {
   _id: string;
   name?: string;
   email?: string;
+  role?: string;
 }
 
 interface Project {
@@ -90,10 +91,25 @@ const ProjectManagement: React.FC = () => {
     }
   };
 
+  // ✅ FIXED: Only fetch students (not all users), filter role, remove duplicates
   const fetchStudents = async () => {
     try {
-      const res = await api.get("/users");
-      setStudents(res.data);
+      const res = await api.get("/users/students");
+
+      // supports both shapes:
+      // 1) res.data = [...]
+      // 2) res.data.students = [...]
+      const rawList: Student[] = Array.isArray(res.data) ? res.data : (res.data?.students || []);
+
+      // defensive filter + dedupe by _id
+      const onlyStudents = rawList
+        .filter((u: any) => u && u._id && (u.role ? u.role === "student" : true))
+        .reduce((acc: Student[], cur: Student) => {
+          if (!acc.some((x) => x._id === cur._id)) acc.push(cur);
+          return acc;
+        }, []);
+
+      setStudents(onlyStudents);
     } catch (err) {
       console.warn("⚠️ Could not load students:", err);
     }
@@ -128,7 +144,7 @@ const ProjectManagement: React.FC = () => {
       color,
       status,
       createdAt: date ? new Date(date).toISOString() : new Date().toISOString(),
-      teamLead: teamLead || null, // only _id string or null
+      teamLead: teamLead || null,
     };
 
     try {

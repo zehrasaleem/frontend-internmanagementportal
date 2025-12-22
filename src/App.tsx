@@ -18,6 +18,9 @@ import TaskManagement from "./pages/TaskManagement";
 import AttendanceReports from "./pages/AttendanceReports";
 import ProgramReports from "./pages/ProgramReports";
 import NotFound from "./pages/NotFound";
+import TeamLeadDashboard from "@/pages/TeamLeadDashboard";
+import TeamLeadTaskManagement from "@/pages/TeamLeadTaskManagement";
+import TeamLeadTimetable from "@/pages/TeamLeadTimetableAndScheduling";
 
 // ✅ New: Project Management Page
 import ProjectManagement from "./pages/ProjectManagement";
@@ -56,6 +59,10 @@ const App = () => (
           <Route path="/project-management" element={<ProjectManagement />} /> {/* ✅ New route */}
           <Route path="/attendance-reports" element={<AttendanceReports />} />
           <Route path="/program-reports" element={<ProgramReports />} />
+
+          <Route path="/teamlead-dashboard" element={<TeamLeadDashboard />} />
+          <Route path="/teamlead-task-management" element={<TeamLeadTaskManagement />} />
+          <Route path="/teamlead-timetable" element={<TeamLeadTimetable />} />
 
           {/* Google OAuth flows */}
           <Route path="/google-signup" element={<GoogleSignupForm />} />
