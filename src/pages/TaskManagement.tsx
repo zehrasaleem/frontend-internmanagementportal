@@ -30,6 +30,7 @@ import { Combobox } from "@headlessui/react";
 import { Toaster, toast } from 'react-hot-toast';
 import { Edit2, Trash2 } from "lucide-react"; // small icons
 
+
 type CurrentUser = {
   _id: string;
   name?: string;
@@ -47,7 +48,9 @@ type Student = {
 type Project = {
   _id: string;
   title: string;
+  teamLead?: Student; // or User type if you have one
 };
+
 
 type Task = {
   _id: string;
@@ -55,11 +58,29 @@ type Task = {
   description: string;
   assignedTo: Student[];
   dueDate: string;
-  status: "Assigned" | "In Progress" | "Pending Approval" | "Completed";
-  startDate?: string;
-  completedDate?: string;
+  status:
+  | "Assigned"
+  | "In Progress"
+  | "Pending Approval"
+  | "Pending Admin Approval"
+  | "Completed"
+  | "Pending Start Approval"
+  | "Missed";
+  assignedBy: string;
   project?: string;
+  createdByRole?: "admin" | "teamLead";
+  approvals?: string[];
+  // execution
+  startDate?: string | null;
+  completedDate?: string | null;
+  progress?: number;
+
+  // ✅ add these (Mongoose usually provides them)
+  createdAt?: string;
+  updatedAt?: string;
 };
+
+
 
 const TaskManagement = () => {
   const navigate = useNavigate();
@@ -71,6 +92,8 @@ const TaskManagement = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [loadingTasks, setLoadingTasks] = useState(true);
   const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
+  const [showDueDateInputsFor, setShowDueDateInputsFor] = useState<string | null>(null);
+
 
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -92,6 +115,17 @@ const TaskManagement = () => {
           s.name.toLowerCase().includes(query.toLowerCase()) ||
           s.email.toLowerCase().includes(query.toLowerCase())
       );
+  const isBlockedByTeamLeadApproval = (task: Task, me: CurrentUser | null, users: CurrentUser[]) => {
+    if (!task.project || !me) return false;
+    if (me.role === "admin") return false; // admins not blocked
+    if (!task.assignedTo.some(s => s._id === me._id)) return false; // not assigned
+
+    const assigner = users.find(u => u._id === task.assignedBy);
+    return assigner && task.status === "Pending Admin Approval";
+
+  };
+
+
 
   // Fetch current user
   useEffect(() => {
@@ -112,19 +146,84 @@ const TaskManagement = () => {
     };
   }, [navigate]);
 
+
   // Load tasks
   const loadTasks = async () => {
     setLoadingTasks(true);
     try {
+      console.log("👤 Current user:", me);
       const { data } = await fetchTasks();
       const allTasks: Task[] = Array.isArray(data) ? data : data.tasks || [];
-      setTasks(allTasks);
+      console.log("📦 All tasks from API:", allTasks);
+
+      if (!me) return;
+
+      let filteredTasks: Task[] = [];
+
+      if (me.role === "admin") {
+        filteredTasks = allTasks.filter((task) => {
+          const meId = String(me._id);
+
+          // ✅ SAFELY extract assignedById
+          const assignedById =
+            task.assignedBy && typeof task.assignedBy === "object"
+              ? String(task.assignedBy._id)
+              : task.assignedBy
+                ? String(task.assignedBy)
+                : null;
+
+          // ✅ SAFELY extract assignedToIds
+          const assignedToIds = (task.assignedTo ?? []).map((u: any) =>
+            typeof u === "object" ? String(u._id) : String(u)
+          );
+
+          console.log("🧪 ADMIN FILTER", {
+            task: task.title,
+            assignedById,
+            assignedToIds,
+            meId,
+          });
+
+          // 🟢 1. Legacy tasks (assignedBy = null)
+          if (!assignedById) return true;
+
+          // 🟢 2. Admin created tasks
+          if (assignedById === meId) return true;
+
+          // 🟢 3. TL self-assigned tasks
+          if (
+            assignedToIds.length === 1 &&
+            assignedToIds[0] === assignedById
+          ) {
+            return true;
+          }
+
+          return false;
+        });
+      }
+
+      else {
+        filteredTasks = allTasks.filter((task) => {
+          const assignedToIds = task.assignedTo?.map((u: any) =>
+            String(u?._id ?? u)
+          );
+
+          return (
+            assignedToIds?.includes(String(me._id)) ||
+            String(task.assignedBy) === String(me._id)
+          );
+        });
+      }
+
+      setTasks(filteredTasks);
+      console.log("✅ Filtered tasks:", filteredTasks);
     } catch (err) {
-      console.error("Error fetching tasks", err);
+      console.error("❌ Error fetching tasks", err);
     } finally {
       setLoadingTasks(false);
     }
   };
+
 
   // Load projects
   const loadProjects = async () => {
@@ -155,10 +254,21 @@ const TaskManagement = () => {
   };
 
   useEffect(() => {
+    if (!me) return;
+
     loadTasks();
     loadProjects();
     loadStudents();
-  }, []);
+  }, [me]);
+
+  useEffect(() => {
+    const project = projects.find(p => p._id === formData.project);
+    if (project?.teamLead) {
+      setFormData(f => ({ ...f, assignedTo: [project.teamLead] }));
+    } else {
+      setFormData(f => ({ ...f, assignedTo: [] }));
+    }
+  }, [formData.project, projects]);
 
   const displayName = me?.name || (me?.email ? me.email.split("@")[0] : "Admin");
   const initials = useMemo(() => {
@@ -174,35 +284,6 @@ const TaskManagement = () => {
     localStorage.removeItem("currentUser");
     navigate("/");
   };
-
-  const handleApprove = async (task: Task) => {
-    if (!me) return;
-    setUpdatingTaskId(task._id);
-    try {
-      await updateTaskStatus(task._id, "Completed");
-      loadTasks();
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to approve task");
-    } finally {
-      setUpdatingTaskId(null);
-    }
-  };
-
-  const handleReject = async (task: Task) => {
-    if (!me) return;
-    setUpdatingTaskId(task._id);
-    try {
-      await updateTaskStatus(task._id, "In Progress");
-      loadTasks();
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to reject task");
-    } finally {
-      setUpdatingTaskId(null);
-    }
-  };
-
 
   const handleNavigation = (item: string) => {
     const routes: Record<string, string> = {
@@ -227,8 +308,21 @@ const TaskManagement = () => {
 
   const handleOpenEditModal = (task: Task) => {
     setEditingTask(task);
-    setOpen(true); // reuse your existing Dialog for creating tasks
+
+    const due = new Date(task.dueDate);
+
+    setFormData({
+      title: task.title,
+      description: task.description,
+      assignedTo: task.assignedTo,
+      dueDate: due.toISOString().split("T")[0],
+      dueTime: due.toTimeString().slice(0, 5),
+      project: task.project || "",
+    });
+
+    setOpen(true);
   };
+
 
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -254,6 +348,11 @@ const TaskManagement = () => {
     const timeParts = formData.dueTime ? formData.dueTime.split(":").map(Number) : [0, 0];
     const dueDateWithTime = new Date(formData.dueDate);
     dueDateWithTime.setHours(timeParts[0], timeParts[1], 0, 0);
+    const selectedProject = projects.find(p => p._id === formData.project || p.title === formData.project);
+    if (!selectedProject.teamLead) {
+      toast.error("Selected project does not have a team lead!");
+      return;
+    }
 
     // Check for past datetime
     if (dueDateWithTime.getTime() < new Date().getTime()) {
@@ -265,10 +364,22 @@ const TaskManagement = () => {
       const payload = {
         title: formData.title,
         description: formData.description,
-        assignedTo: formData.assignedTo.map((s) => s.email),
-        dueDate: dueDateWithTime.toISOString(),
-        project: formData.project,
+        assignedTo: [selectedProject.teamLead?.email], // send email instead of _id
+        assignedBy: me?._id,
+        project: selectedProject._id,
+
+        dueDate: dueDateWithTime.toISOString()
       };
+
+
+      console.log("Selected Project:", selectedProject);
+      console.log("Team Lead:", selectedProject.teamLead);
+      console.log("Payload:", {
+        ...payload,
+        assignedTo: [selectedProject.teamLead?._id],
+        assignedBy: me?._id,
+        project: selectedProject._id
+      });
 
       if (editingTask) {
         await api.patch(`/tasks/${editingTask._id}`, payload); // update
@@ -290,36 +401,18 @@ const TaskManagement = () => {
 
   };
 
-
-  const getTaskStatus = (task: Task) => {
-    if (task.status === "Assigned") return "To Do";
-    if (task.status === "In Progress") return "In Progress";
-    if (task.status === "Pending Approval") return "Pending Approval"; // ✅ Add this
-    if (task.status === "Completed") return "Completed";
-    return "Other";
-  };
-
-
-  const markCompleted = async (task: Task) => {
-    if (!me) return;
-    setUpdatingTaskId(task._id);
-    try {
-      await updateTaskStatus(task._id, "Completed");
-      loadTasks();
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to mark task completed");
-    } finally {
-      setUpdatingTaskId(null);
-    }
-  };
-
   const isUpcoming = (task: Task) => {
     const today = new Date();
     const due = new Date(task.dueDate);
     const diff = (due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
-    return diff >= 0 && diff <= 7 && task.status !== "Completed";
+
+    return (
+      diff >= 0 &&
+      diff <= 7 &&
+      (task.status === "Assigned" || task.status === "In Progress")
+    );
   };
+
 
   const isUrgent = (task: Task) => {
     const today = new Date();
@@ -328,35 +421,18 @@ const TaskManagement = () => {
     return diff <= 2;
   };
 
-  const timeTaken = (task: Task) => {
-    if (!task.startDate || !task.completedDate) return "-";
-    const start = new Date(task.startDate);
-    const end = new Date(task.completedDate);
-    let diff = Math.floor((end.getTime() - start.getTime()) / 1000); // total seconds
-
-    const days = Math.floor(diff / (3600 * 24));
-    diff -= days * 3600 * 24;
-
-    const hours = Math.floor(diff / 3600);
-    diff -= hours * 3600;
-
-    const minutes = Math.floor(diff / 60);
-    const seconds = diff % 60;
-
-    const parts = [];
-    if (days) parts.push(`${days}d`);
-    if (hours) parts.push(`${hours}h`);
-    if (minutes) parts.push(`${minutes}m`);
-    if (seconds) parts.push(`${seconds}s`);
-
-    return parts.join(" ") || "0s";
-  };
-
   const formatDueDate = (dateString: string) => {
     const d = new Date(dateString);
-    const options: Intl.DateTimeFormatOptions = { month: "short", day: "2-digit" };
-    return d.toLocaleDateString("en-US", options) + ", 12:00 AM";
+    const options: Intl.DateTimeFormatOptions = {
+      month: "short",
+      day: "2-digit",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    };
+    return d.toLocaleString("en-US", options); // shows actual time
   };
+
 
 
   type TaskCardProps = {
@@ -365,187 +441,328 @@ const TaskManagement = () => {
     refreshTasks?: () => void;
     openEditModal?: (task: Task) => void;
     isUpcomingSection?: boolean;
-    updatingTaskId?: string | null; 
+    isMissedSection?: boolean; // new prop
+    updatingTaskId?: string | null;
+    showProgressOnly?: boolean;
   };
-
   const TaskCard: React.FC<TaskCardProps> = ({
-  task,
-  me,
-  refreshTasks,
-  openEditModal,
-  isUpcomingSection = false, // true only for Upcoming Tasks section
-  updatingTaskId,
-}) => {
-  const isAdmin = me?.role === "admin";
+    task,
+    me,
+    refreshTasks,
+    openEditModal,
+    isUpcomingSection = false, // true only for Upcoming Tasks section
+    isMissedSection = false,
+    updatingTaskId,
+    showProgressOnly = false,
+  }) => {
+    const isAdmin = me?.role === "admin";
+    const showApproveReject =
+      isAdmin &&
+      !isUpcomingSection &&
+      (
+        task.status === "Pending Approval" ||
+        task.status === "Pending Admin Approval" ||
+        task.status === "Pending Start Approval"
+      );
+    // only show for missed tasks if section
 
-  const statusStyles: Record<string, { bg: string; border: string; text: string }> = {
-    "To Do": { bg: "bg-blue-50", border: "border-l-blue-500", text: "text-gray-900" },
-    Assigned: { bg: "bg-blue-50", border: "border-l-blue-500", text: "text-gray-900" },
-    "In Progress": { bg: "bg-yellow-50", border: "border-l-yellow-500", text: "text-gray-900" },
-    "Pending Approval": { bg: "bg-amber-50", border: "border-l-amber-500", text: "text-gray-900" },
-    Completed: { bg: "bg-green-50", border: "border-l-green-500", text: "text-gray-900" },
-  };
+    // Status-based colors ONLY
+    const statusStyles = {
+      Assigned: { bg: "bg-blue-50", border: "border-l-blue-500", text: "text-gray-900" },
+      "In Progress": { bg: "bg-yellow-50", border: "border-l-yellow-500", text: "text-gray-900" },
+      "Pending Approval": { bg: "bg-amber-50", border: "border-l-amber-500", text: "text-gray-900" },
+      "Pending Admin Approval": {
+        bg: "bg-amber-50",
+        border: "border-l-amber-500",
+        text: "text-gray-900",
+      },
+      "Pending Start Approval": { bg: "bg-red-50", border: "border-l-red-500", text: "text-red-700" },
+      Missed: { bg: "bg-red-50", border: "border-l-red-500", text: "text-red-700" },
+      Completed: { bg: "bg-green-50", border: "border-l-green-500", text: "text-gray-900" },
+    };
 
-  // Determine colors
-  let cardColors;
-  if (task.status === "Pending Approval") {
-    cardColors = statusStyles["Pending Approval"]; // Always amber
-  } else if (isUpcomingSection) {
-    cardColors = { bg: "bg-red-50", border: "border-l-red-500", text: "text-red-700" }; // Only upcoming section
-  } else {
-    cardColors = statusStyles[task.status] || statusStyles["To Do"]; // Normal status colors
+    if (!isUpcomingSection && !statusStyles[task.status]) {
+      console.error("❌ Missing statusStyles for:", task.status);
+    }
+    const upcomingStyles = {
+      bg: "bg-red-50",
+      border: "border-l-red-500",
+      text: "text-red-700",
+    };
+
+
+
+    if (!statusStyles[task.status]) {
+      console.warn("⚠️ Unknown task status:", task.status);
+    }
+
+    // Decide colors
+    const cardColors =
+      isMissedSection
+        ? statusStyles["Missed"]       // 🔴 RED only in Missed section
+        : isUpcomingSection
+          ? upcomingStyles
+          : statusStyles[task.status] ?? statusStyles["Assigned"];
+
+    const handleEdit = () => openEditModal?.(task);
+
+    const handleDelete = async () => {
+      if (!refreshTasks) return;
+
+      const confirmed = window.confirm(
+        `Are you sure you want to delete "${task.title}"?\nThis action cannot be undone.`
+      );
+
+      if (!confirmed) return;
+
+      try {
+        await deleteTask(task._id);
+        toast.success("🗑️ Task deleted successfully");
+        refreshTasks();
+      } catch (err) {
+        console.error(err);
+        toast.error("Failed to delete task");
+      }
+    };
+    // Correct version for missed tasks
+    const handleApprove = async (task: Task) => {
+  if (!refreshTasks) return;
+
+  try {
+    const now = new Date();
+    const due = new Date(task.dueDate);
+    const isOverdue = due.getTime() < now.getTime() && task.status !== "Completed";
+
+    // Only show new due date picker if task is overdue AND NOT fully done
+    if (isOverdue && (task.progress ?? 0) < 100) {
+      setEditingTask(task);
+      setFormData({
+        ...formData,
+        dueDate: due.toISOString().split("T")[0],
+        dueTime: due.toTimeString().slice(0, 5),
+      });
+      setShowDueDateInputsFor(task._id);
+      return;
+    }
+
+    if (task.status === "Completed") {
+      toast("✅ Task already completed");
+      return;
+    }
+
+    // ✅ Approve the task
+    await updateTaskStatus(task._id, "Completed");
+    toast.success("✅ Task approved and completed");
+    refreshTasks();
+  } catch (err) {
+    console.error("Approve task error:", err);
+    toast.error("❌ Failed to approve task");
   }
-
-  const handleEdit = () => openEditModal?.(task);
-
-  const handleDelete = async () => {
-    if (!refreshTasks) return;
-    if (!confirm("Are you sure you want to delete this task?")) return;
-
-    try {
-      await deleteTask(task._id);
-      toast.success("Task deleted successfully");
-      refreshTasks();
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to delete task");
-    }
-  };
-
-  const handleApprove = async () => {
-    if (!refreshTasks) return;
-    try {
-      await updateTaskStatus(task._id, "Completed");
-      toast.success("Task approved");
-      refreshTasks();
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to approve task");
-    }
-  };
-
-  const handleReject = async () => {
-    if (!refreshTasks) return;
-    try {
-      await updateTaskStatus(task._id, "In Progress");
-      toast.success("Task rejected");
-      refreshTasks();
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to reject task");
-    }
-  };
-
-  const formatDueDate = (dateString: string) => {
-  const d = new Date(dateString);
-
-  // Format date like "Nov 16, 5:00 PM"
-  const options: Intl.DateTimeFormatOptions = {
-    month: "short",
-    day: "2-digit",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  };
-
-  return d.toLocaleString("en-US", options);
 };
+    const handleReject = async () => {
+      if (!refreshTasks) return;
+      try {
+        const fallbackStatus =
+          task.status === "Pending Approval" ? "In Progress" : "Assigned";
+
+        await updateTaskStatus(task._id, fallbackStatus);
+        toast.success("Request rejected");
+        refreshTasks();
+      } catch (err) {
+        console.error(err);
+        toast.error("Failed to reject task");
+      }
+    };
+
+    const formatDueDate = (dateString: string) => {
+      const d = new Date(dateString);
+
+      // Format date like "Nov 16, 5:00 PM"
+      const options: Intl.DateTimeFormatOptions = {
+        year: "numeric",
+        month: "short",
+        day: "2-digit",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      };
+
+      return d.toLocaleString("en-US", options);
+    };
 
 
-  const timeTaken = (task: Task) => {
-    if (!task.startDate || !task.completedDate) return "-";
-    const start = new Date(task.startDate);
-    const end = new Date(task.completedDate);
-    let diff = Math.floor((end.getTime() - start.getTime()) / 1000);
+    const timeTaken = (task: Task) => {
+      const startRaw = task.startDate || task.createdAt || null;
+      const endRaw = task.completedDate || task.updatedAt || null;
 
-    const days = Math.floor(diff / (3600 * 24));
-    diff -= days * 3600 * 24;
-    const hours = Math.floor(diff / 3600);
-    diff -= hours * 3600;
-    const minutes = Math.floor(diff / 60);
-    const seconds = diff % 60;
+      if (!startRaw || !endRaw) return "-";
+      if (startRaw === "null" || endRaw === "null") return "-";
 
-    const parts = [];
-    if (days) parts.push(`${days}d`);
-    if (hours) parts.push(`${hours}h`);
-    if (minutes) parts.push(`${minutes}m`);
-    if (seconds) parts.push(`${seconds}s`);
+      const start = new Date(startRaw);
+      const end = new Date(endRaw);
 
-    return parts.join(" ") || "0s";
-  };
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return "-";
+      if (end.getTime() < start.getTime()) return "-";
 
-  return (
-    <Card
-      className={`w-full max-w-[400px] ${cardColors.bg} ${cardColors.border} border-l-4 rounded-lg shadow-sm hover:shadow-md transition-shadow relative`}
-    >
-      <CardContent className="p-4 flex flex-col justify-between">
-        {isAdmin && (
-          <div className="absolute top-2 right-2 flex gap-2">
-            <button onClick={handleEdit} className="p-1 hover:bg-gray-200 rounded-full" title="Edit Task">
-              <Edit2 size={16} />
-            </button>
-            <button onClick={handleDelete} className="p-1 hover:bg-gray-200 rounded-full" title="Delete Task">
-              <Trash2 size={16} />
-            </button>
-          </div>
-        )}
+      let diff = Math.floor((end.getTime() - start.getTime()) / 1000);
 
-        <div className="flex flex-col gap-1">
-          <h4 className={`font-semibold ${cardColors.text}`}>{task.title}</h4>
-          <p className="text-sm text-gray-600">{task.description}</p>
+      const days = Math.floor(diff / (3600 * 24));
+      diff -= days * 3600 * 24;
+      const hours = Math.floor(diff / 3600);
+      diff -= hours * 3600;
+      const minutes = Math.floor(diff / 60);
+      const seconds = diff % 60;
 
-          <div className="text-xs text-gray-500">
-            Assigned to:{" "}
-            <span className="font-medium text-gray-700">{task.assignedTo.map((s) => s.name).join(", ")}</span>
-          </div>
+      const parts: string[] = [];
+      if (days) parts.push(`${days}d`);
+      if (hours) parts.push(`${hours}h`);
+      if (minutes) parts.push(`${minutes}m`);
+      if (seconds) parts.push(`${seconds}s`);
 
-          <div className={`text-xs font-semibold ${cardColors.text}`}>Due: {formatDueDate(task.dueDate)}</div>
+      return parts.join(" ") || "0s";
+    };
 
-          {task.status === "Completed" && (
-            <div className="text-xs text-gray-500">Time Taken: {timeTaken(task)}</div>
+    return (
+      <Card
+        className={`w-full max-w-[400px] ${cardColors.bg} ${cardColors.border} border-l-4 rounded-lg shadow-sm hover:shadow-md transition-shadow relative`}
+      >
+        <CardContent className="p-4 flex flex-col justify-between">
+          {isAdmin && (
+            <div className="absolute top-2 right-2 flex gap-2">
+              <button onClick={handleEdit} className="p-1 hover:bg-gray-200 rounded-full" title="Edit Task">
+                <Edit2 size={16} />
+              </button>
+              <button onClick={handleDelete} className="p-1 hover:bg-gray-200 rounded-full" title="Delete Task">
+                <Trash2 size={16} />
+              </button>
+            </div>
           )}
-        </div>
 
-        {isAdmin && task.status === "Pending Approval" && (
-          <div className="mt-3 flex gap-2">
-            <Button
-              onClick={handleApprove}
-              size="sm"
-              className="bg-green-600 hover:bg-green-700 text-white flex-1"
-              disabled={updatingTaskId === task._id}
-            >
-              Approve
-            </Button>
-            <Button
-              onClick={handleReject}
-              size="sm"
-              className="bg-red-600 hover:bg-red-700 text-white flex-1"
-              disabled={updatingTaskId === task._id}
-            >
-              Reject
-            </Button>
+          <div className="flex flex-col gap-1">
+            <h4 className={`font-semibold ${cardColors.text}`}>{task.title}</h4>
+            <p className="text-sm text-gray-600">{task.description}</p>
+
+            <div className="text-xs text-gray-500">
+              Assigned to:{" "}
+              <span className="font-medium text-gray-700">{task.assignedTo.map((s) => s.name).join(", ")}</span>
+            </div>
+
+            <div className={`text-xs font-semibold ${cardColors.text}`}>Due: {formatDueDate(task.dueDate)}</div>
+
+            {task.status === "Completed" && (
+              <div className="text-xs text-gray-500">Time Taken: {timeTaken(task)}</div>
+            )}
           </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-};
 
+          {showProgressOnly ? (
+            <div className="mt-3">
+              <div className="w-full bg-gray-200 h-3 rounded-full overflow-hidden">
+                <div
+                  className="bg-amber-500 h-3 rounded-full"
+                  style={{ width: `${task.progress ?? 0}%` }}
+                />
+              </div>
+              <div className="text-xs text-gray-500 mt-1">{task.progress ?? 0}% Completed</div>
+            </div>
+          ) : (
+            <>
+              {isMissedSection && showDueDateInputsFor === task._id ? (
+                <div className="mt-3 flex flex-col gap-2">
+                  {/* New due date picker */}
+                  <Label className="font-medium text-gray-700">Set New Due Date</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      type="date"
+                      value={formData.dueDate}
+                      onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                      className="rounded-lg border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                      min={new Date().toISOString().split("T")[0]}
+                    />
+                    <Input
+                      type="time"
+                      value={formData.dueTime}
+                      onChange={(e) => setFormData({ ...formData, dueTime: e.target.value })}
+                      className="rounded-lg border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  <Button
+                    onClick={() => {
+                      const [h, m] = formData.dueTime.split(":").map(Number);
+                      const newDue = new Date(formData.dueDate);
+                      newDue.setHours(h, m, 0, 0);
 
+                      api.patch(`/tasks/${task._id}`, {
+                        dueDate: newDue.toISOString(),
+                        status: "Assigned",
+                        progress: 0,
+                        startDate: null,
+                        completedDate: null,
+                      })
+                        .then(() => {
+                          toast.success("✅ New due date set. Task reactivated.");
+                          setShowDueDateInputsFor(null);
+                          refreshTasks?.();
+                        })
+                        .catch(() => toast.error("❌ Failed to set due date"));
+                    }}
+                  >
+                    Save Due Date
+                  </Button>
 
-  const tasksByStatus = {
-    "To Do": tasks.filter((t) => getTaskStatus(t) === "To Do"),
-    "In Progress": tasks.filter(
-      (t) =>
-        getTaskStatus(t) === "In Progress" ||
-        getTaskStatus(t) === "Pending Approval"
-    ),
+                </div>
+              ) : (
+                showApproveReject && (
+                  <div className="mt-3 flex gap-2">
+                    <Button
+                      onClick={() => handleApprove(task)}
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700 text-white flex-1"
+                      disabled={updatingTaskId === task._id}
+                    >
+                      Approve
+                    </Button>
+                    <Button
+                      onClick={handleReject}
+                      size="sm"
+                      className="bg-red-600 hover:bg-red-700 text-white flex-1"
+                      disabled={updatingTaskId === task._id}
+                    >
+                      Reject
+                    </Button>
+                  </div>
+                )
+              )}
 
-    "Pending Approval": tasks.filter((t) => getTaskStatus(t) === "Pending Approval"),
+            </>
+          )}
 
-    Completed: tasks.filter((t) => getTaskStatus(t) === "Completed"),
+        </CardContent>
+      </Card>
+    );
   };
+  const tasksByStatus = {
+    "To Do": tasks.filter((t) => t.status === "Assigned"),
+    "In Progress": tasks.filter((t) => t.status === "In Progress"),
+    "Pending Approval": tasks.filter(
+      (t) =>
+        t.status === "Pending Approval" ||
+        t.status === "Pending Admin Approval" // ✅ ADD
+    ),
+    Completed: tasks.filter((t) => t.status === "Completed"),
+  };
+  const missedTasks = tasks.filter((t) => {
+    const now = new Date();
+    const due = new Date(t.dueDate);
 
+    const isOverdue = due.getTime() < now.getTime();
+    const notCompleted = t.status !== "Completed";
+
+    // ✅ Exclude tasks that are fully done by student but pending admin approval
+    const excludePendingAdmin =
+      t.status === "Pending Admin Approval" && (t.progress ?? 0) === 100;
+
+    return isOverdue && notCompleted && !excludePendingAdmin;
+  });
 
 
   const upcomingTasks = tasks.filter(isUpcoming);
@@ -604,16 +821,31 @@ const TaskManagement = () => {
               {/* Create Task Dialog */}
               <Dialog open={open} onOpenChange={setOpen}>
                 <Button
-                  onClick={() => setOpen(true)}
+                  onClick={() => {
+                    setEditingTask(null);
+                    setFormData({
+                      title: "",
+                      description: "",
+                      assignedTo: [],
+                      dueDate: "",
+                      dueTime: "00:00",
+                      project: "",
+                    });
+                    setOpen(true);
+                  }}
                   className="bg-blue-600 hover:bg-blue-700 text-white flex items-center space-x-2 px-4 py-2 rounded shadow"
                 >
                   <Plus className="w-4 h-4" />
                   <span>Create New Task</span>
                 </Button>
 
+
                 <DialogContent className="sm:max-w-2xl w-full max-h-[90vh] overflow-auto bg-white rounded-2xl shadow-xl border border-gray-200">
                   <DialogHeader>
-                    <DialogTitle className="text-2xl font-bold text-gray-900 mb-2">Create New Task</DialogTitle>
+                    <DialogTitle className="text-2xl font-bold text-gray-900 mb-2">
+                      {editingTask ? "Edit Task" : "Create New Task"}
+                    </DialogTitle>
+
                     <p className="text-sm text-gray-500">Fill in the details below to create a new task.</p>
                   </DialogHeader>
 
@@ -680,8 +912,24 @@ const TaskManagement = () => {
 
                         {/* List of interns with checkboxes */}
                         <div className="border border-gray-300 rounded-lg shadow-sm max-h-64 overflow-auto p-2 bg-white">
-                          {students.length > 0 ? (
-                            students.map((student) => {
+                          {(() => {
+                            // Determine options based on role
+                            let options: Student[] = [];
+                            if (me?.role === "admin") {
+                              const project = projects.find((p) => p._id === formData.project);
+                              if (project && project.teamLead) {
+                                options = [project.teamLead];
+                              }
+                            } else {
+                              // Team lead or others
+                              options = students;
+                            }
+
+                            if (options.length === 0) {
+                              return <p className="text-gray-500 p-2">No interns found.</p>;
+                            }
+
+                            return options.map((student) => {
                               const checked = formData.assignedTo.some((s) => s._id === student._id);
                               return (
                                 <label
@@ -716,11 +964,10 @@ const TaskManagement = () => {
                                   {checked && <Check className="w-5 h-5 text-blue-600" />}
                                 </label>
                               );
-                            })
-                          ) : (
-                            <p className="text-gray-500 p-2">No interns found.</p>
-                          )}
+                            });
+                          })()}
                         </div>
+
                       </div>
                     </div>
 
@@ -771,7 +1018,8 @@ const TaskManagement = () => {
                       >
                         <option value="">-- Select Project --</option>
                         {projects.map((p) => (
-                          <option key={p._id} value={p.title}>{p.title}</option>
+                          <option key={p._id} value={p._id}>{p.title}</option>
+
                         ))}
                       </select>
                     </div>
@@ -782,8 +1030,9 @@ const TaskManagement = () => {
                         type="submit"
                         className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg shadow"
                       >
-                        Create Task
+                        {editingTask ? "Update Task" : "Create Task"}
                       </Button>
+
                     </div>
                   </form>
                 </DialogContent>
@@ -822,15 +1071,42 @@ const TaskManagement = () => {
                     task={task}
                     me={me}
                     refreshTasks={loadTasks}
-                    openEditModal={handleOpenEditModal} // see next step
-                    isUpcomingSection={isUpcoming(task)} // for upcoming tasks
+                    openEditModal={handleOpenEditModal}
+                    isUpcomingSection={true} // ✅ force red ONLY here
                     updatingTaskId={updatingTaskId}
                   />
-
                 ))}
+
               </div>
             </section>
           )}
+          {me?.role === "admin" && missedTasks.length > 0 && (
+            <section className="bg-white rounded-xl p-5 shadow border border-gray-200">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-900">⚠️ Missed Tasks</h2>
+                <span className="text-sm bg-red-100 text-red-700 px-3 py-1 rounded-full">
+                  {missedTasks.length}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {missedTasks.map((task) => (
+                  <TaskCard
+                    key={task._id}
+                    task={task}
+                    me={me}
+                    refreshTasks={loadTasks}
+                    openEditModal={handleOpenEditModal}
+                    isUpcomingSection={false} // not upcoming
+                    isMissedSection={true}    // NEW prop
+                    updatingTaskId={updatingTaskId}
+                  />
+                ))}
+
+              </div>
+            </section>
+          )}
+
 
 
           {/* PENDING APPROVAL (FULL WIDTH LIKE YOUR SS) */}
@@ -851,7 +1127,7 @@ const TaskManagement = () => {
                     me={me}
                     refreshTasks={loadTasks}
                     openEditModal={handleOpenEditModal} // see next step
-                    isUpcomingSection={isUpcoming(task)}// for upcoming tasks
+                    isUpcomingSection={false}
                     updatingTaskId={updatingTaskId}
                   />
 
@@ -880,7 +1156,7 @@ const TaskManagement = () => {
                     me={me}
                     refreshTasks={loadTasks}
                     openEditModal={handleOpenEditModal} // see next step
-                    isUpcomingSection={isUpcoming(task)} // for upcoming tasks
+                    isUpcomingSection={false}
                     updatingTaskId={updatingTaskId}
                   />
 
@@ -905,8 +1181,9 @@ const TaskManagement = () => {
                     me={me}
                     refreshTasks={loadTasks}
                     openEditModal={handleOpenEditModal} // see next step
-                    isUpcomingSection={isUpcoming(task)}// for upcoming tasks
+                    isUpcomingSection={false}
                     updatingTaskId={updatingTaskId}
+                    showProgressOnly={true}
                   />
 
                 ))}
@@ -930,10 +1207,9 @@ const TaskManagement = () => {
                     me={me}
                     refreshTasks={loadTasks}
                     openEditModal={handleOpenEditModal} // see next step
-                    isUpcomingSection={isUpcoming(task)} // for upcoming tasks
+                    isUpcomingSection={false}
                     updatingTaskId={updatingTaskId}
                   />
-
                 ))}
               </div>
             </div>

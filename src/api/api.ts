@@ -4,21 +4,9 @@ import axios, {
   AxiosError,
   InternalAxiosRequestConfig,
   AxiosHeaders,
-  AxiosRequestHeaders,
   AxiosRequestConfig,
 } from "axios";
-
-/* ------------------------------------------------------------
-   🔹 One-off task approval request (unchanged)
------------------------------------------------------------- */
-export const requestTaskApproval = async (taskId: string) => {
-  const token = localStorage.getItem("token");
-  return axios.put(
-    `http://localhost:5000/api/tasks/${taskId}/request-approval`,
-    {},
-    { headers: { Authorization: `Bearer ${token}` } }
-  );
-};
+export const BASE_URL = "http://localhost:5000/api";
 
 /* ------------------------------------------------------------
    ✅ Create base Axios instance
@@ -27,6 +15,22 @@ const api: AxiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_URL ?? "http://localhost:5000/api",
   withCredentials: true,
 });
+
+/* ------------------------------------------------------------
+   🔹 One-off task approval request
+------------------------------------------------------------ */
+export const requestTaskApproval = async (taskId: string, isMissed = false) => {
+  if (!taskId) throw new Error("Task ID is required");
+  return api.put(`/tasks/${taskId.trim()}/request-approval`, { isMissed });
+};
+
+// request admin permission to start missed task
+export const requestTaskStart = (taskId: string) => {
+  const token = localStorage.getItem("token");
+  return axios.put(`${BASE_URL}/tasks/${taskId}/request-start`, {}, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+};
 
 /* ------------------------------------------------------------
    ✅ Attach JWT token to every request (TS-safe)
@@ -76,10 +80,24 @@ export const fetchUsers = async () => {
 ------------------------------------------------------------ */
 export const createTask = (taskData: any) => api.post("/tasks", taskData);
 
-export const fetchTasks = () => api.get("/tasks");
+export const fetchTasks = (email?: string) => {
+  if (email) {
+    return api.get(`/tasks/student/${email}`);
+  } else {
+    return api.get("/tasks"); // admin
+  }
+};
 
-export const updateTaskStatus = (taskId: string, status: string) =>
-  api.put(`/tasks/${taskId.trim()}/status`, { status });
+export const updateTaskStatus = async (
+  taskId: string,
+  status: string,
+  dueDate?: string
+) => {
+  const payload: any = { status };
+  if (dueDate) payload.dueDate = dueDate;
+  return api.patch(`/tasks/${taskId}`, payload);
+};
+
 
 export const assignTask = (taskId: string, interns: string[]) =>
   api.patch(`/tasks/${taskId.trim()}/assign`, { assignedTo: interns });
@@ -105,12 +123,21 @@ export const deleteProject = (id: string) =>
 
 export const getProjectById = (id: string) =>
   api.get(`/projects/${id.trim()}`);
+export const updateTask = (taskId: string, taskData: any) =>
+  api.patch(`/tasks/${taskId.trim()}`, taskData);
+export const requestAdminStartApproval = (taskId: string) =>
+  api.put(`/tasks/${taskId.trim()}/admin-approve-start`);
+export const requestTaskApprovalForStudent = (taskId: string, isMissed = false) =>
+  api.put(`/tasks/${taskId.trim()}/request-approval`, { isMissed });
+export const assignMoreStudentsToTask = (taskId: string, assignedTo: string[]) =>
+  api.patch(`/tasks/${taskId.trim()}/assign`, { assignedTo });
+export const getTaskById = (taskId: string) =>
+  api.get(`/tasks/${taskId.trim()}`);
+
 
 /* ------------------------------------------------------------
    ✅ GOOGLE SIGNUP (🚨 FIXED)
 ------------------------------------------------------------ */
-
-// Payload type
 interface GoogleSignupPayload {
   fullName: string;
   role: "student" | "admin";
@@ -122,27 +149,20 @@ interface GoogleSignupPayload {
   dateOfJoining?: string;
 }
 
-// Fetch signup info
 export const getGoogleSignupInfo = async () => {
   const res = await api.get("/google/signup-info");
   return res.data;
 };
 
-// 🔥 FIX: return FULL Axios response
 export const completeGoogleSignup = (
   payload: GoogleSignupPayload,
   config?: AxiosRequestConfig
-) => {
-  return api.post("/google/complete", payload, config);
-};
+) => api.post("/google/complete", payload, config);
 
-// 🔥 FIX: return FULL Axios response
 export const completeNormalSignup = (
   payload: GoogleSignupPayload,
   config?: AxiosRequestConfig
-) => {
-  return api.post("/auth/register/complete", payload, config);
-};
+) => api.post("/auth/register/complete", payload, config);
 
 /* ------------------------------------------------------------
    ✅ Default export
