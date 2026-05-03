@@ -6,7 +6,6 @@ import {
   FileText,
   Calendar,
   LogOut,
-  BarChart3,
   Plus,
   FolderKanban,
   Check,
@@ -292,7 +291,6 @@ const TaskManagement = () => {
       "Task Management": "/task-management",
       "Project Management": "/project-management",
       "Attendance Reports": "/attendance-reports",
-      "Program Reports": "/program-reports",
       "Timetable & Scheduling": "/admin-timetable",
     };
     navigate(routes[item]);
@@ -400,6 +398,7 @@ const TaskManagement = () => {
     }
 
   };
+
 
   const isUpcoming = (task: Task) => {
     const today = new Date();
@@ -790,7 +789,6 @@ const TaskManagement = () => {
             { icon: ClipboardList, label: "Task Management" },
             { icon: FolderKanban, label: "Project Management" },
             { icon: FileText, label: "Attendance Reports" },
-            { icon: BarChart3, label: "Program Reports" },
             { icon: Calendar, label: "Timetable & Scheduling" },
           ].map((item, index) => (
             <button

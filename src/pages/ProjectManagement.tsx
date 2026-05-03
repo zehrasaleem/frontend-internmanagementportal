@@ -9,20 +9,12 @@ import {
 } from "../api/projects";
 import api from "../api/api";
 import {
-  LayoutDashboard,
-  Users,
-  ClipboardList,
-  FolderKanban,
-  FileText,
-  BarChart3,
-  Calendar as CalendarIcon,
-  LogOut,
   Plus,
   MoreVertical,
   X,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import AdminSidebar from "@/components/admin/AdminSidebar";
+import AdminNavbar from "@/components/admin/AdminNavbar";
 
 interface Student {
   _id: string;
@@ -222,85 +214,19 @@ const ProjectManagement: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
-      {/* Sidebar */}
-      <aside className="fixed left-0 top-0 h-full w-64 bg-white border-r border-gray-200 shadow-sm">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">C</span>
-            </div>
-            <div className="ml-3">
-              <h1 className="font-semibold text-gray-900 text-sm">
-                CSIT Admin Dashboard
-              </h1>
-              <p className="text-xs text-gray-500">Intern Management Portal</p>
-            </div>
-          </div>
-        </div>
-
-        <nav className="p-4 space-y-1">
-          {[
-            { icon: LayoutDashboard, label: "Dashboard", path: "/admin-dashboard" },
-            { icon: Users, label: "Intern Management", path: "/intern-management" },
-            { icon: ClipboardList, label: "Task Management", path: "/task-management" },
-            { icon: FolderKanban, label: "Project Management", path: "/project-management" },
-            { icon: FileText, label: "Attendance Reports", path: "/attendance-reports" },
-            { icon: BarChart3, label: "Program Reports", path: "/program-reports" },
-            { icon: CalendarIcon, label: "Timetable & Scheduling", path: "/admin-timetable" },
-          ].map((item) => (
-            <a
-              key={item.label}
-              href={item.path}
-              className={`flex items-center px-3 py-3 rounded-lg text-sm transition-all ${
-                item.label === "Project Management"
-                  ? "bg-blue-50 text-blue-600 border-l-4 border-blue-600"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              }`}
-            >
-              <item.icon className="w-5 h-5 mr-3" />
-              {item.label}
-            </a>
-          ))}
-        </nav>
-      </aside>
+      <AdminSidebar activeItem="Project Management" />
 
       {/* Main */}
       <div className="flex-1 ml-64">
-        {/* Header */}
-        <header className="bg-white border-b border-gray-200 shadow-sm">
-          <div className="flex items-center justify-between px-6 py-4">
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900">
-                Project Management
-              </h2>
-              <p className="text-sm text-gray-500">
-                {me?.role === "admin" ? "Admin" : "User"}
-              </p>
-            </div>
-
-            <div className="flex items-center gap-4">
-              <div className="flex items-center space-x-2">
-                <Avatar className="w-8 h-8">
-                  <AvatarImage src={me?.picture || ""} alt={me?.name || "A"} />
-                  <AvatarFallback>{me?.name ? me.name[0] : "A"}</AvatarFallback>
-                </Avatar>
-                <span className="text-sm text-gray-700">
-                  {me?.name || me?.email || "Admin"}
-                </span>
-              </div>
-              <Button
-                onClick={handleLogout}
-                variant="ghost"
-                size="sm"
-                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-              >
-                <LogOut className="w-4 h-4 mr-1" /> Logout
-              </Button>
-            </div>
-          </div>
-        </header>
+        <AdminNavbar me={me} onLogout={handleLogout} />
 
         <main className="p-8">
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold text-gray-900">
+              Project Management
+            </h2>
+          </div>
+
           {/* Top section */}
           <div className="flex justify-between items-center mb-8">
             <h3 className="text-lg font-semibold text-gray-800">

@@ -1,22 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
-import { useNavigate, useLocation } from "react-router-dom";
+import StudentSidebar from "@/components/students/StudentSidebar";
+import StudentNavbar from "@/components/students/StudentNavbar";
+import { useNavigate } from "react-router-dom";
 import { fetchTasks, updateTaskStatus, updateTaskProgress } from "@/api/api";
 import { requestTaskStart } from "@/api/api";
-import {
-  LayoutDashboard,
-  CheckSquare,
-  Calendar,
-  Users,
-  User as UserIcon,
-} from "lucide-react";
 import { requestTaskApproval } from "@/api/api";
-import { Toaster, toast } from 'react-hot-toast';
+import { Toaster, toast } from "react-hot-toast";
+
 // Add inside your App component (or top-level)
 function App() {
   return (
@@ -27,9 +27,7 @@ function App() {
   );
 }
 
-
-
-// -------------------- Sidebar Component --------------------
+// -------------------- User Type --------------------
 type CurrentUser = {
   _id: string;
   name?: string;
@@ -38,70 +36,40 @@ type CurrentUser = {
   picture?: string;
 };
 
-interface SidebarProps {
-  user: CurrentUser | null;
-  loadingUser: boolean;
-}
-
-const sidebarItems = [
-  { icon: LayoutDashboard, label: "Dashboard", path: "/student-dashboard" },
-  { icon: CheckSquare, label: "My Tasks", path: "/student-tasks" },
-  { icon: Users, label: "Attendance", path: "/student-attendance" },
-  { icon: Calendar, label: "Timetable & Scheduling", path: "/student-timetable" },
-  { icon: UserIcon, label: "Profile", path: "/student-profile" },
-];
-
-const isMissed = (task: TaskWithVirtual) => task.virtualStatus === "Missed";
-
-const Sidebar = ({ user, loadingUser }: SidebarProps) => {
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  const handleNavigation = (path: string) => navigate(path);
-
-  return (
-    <div className="w-64 bg-white border-r border-border min-h-screen flex flex-col">
-      <nav className="p-4 space-y-2">
-        {sidebarItems.map((item) => (
-          <button
-            key={item.label}
-            onClick={() => handleNavigation(item.path)}
-            className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${location.pathname === item.path
-              ? "bg-primary/10 text-primary border-l-4 border-primary"
-              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-              }`}
-          >
-            <item.icon className="w-5 h-5 flex-shrink-0" />
-            <span className="font-medium text-sm leading-tight">{item.label}</span>
-          </button>
-        ))}
-      </nav>
-    </div>
-  );
-};
-
 // -------------------- StudentTasks Component --------------------
 type UserRef = {
   _id: string;
   name: string;
   email: string;
 };
+
 type AssignedUser = UserRef & { role: "student" | "teamLead" };
+
 type TaskWithVirtual = Task & {
-  virtualStatus: Task['status'];
+  virtualStatus: Task["status"];
   wasStarted: boolean;
 };
+
 type Task = {
   _id: string;
   title: string;
   subHeading?: string;
   description: string;
-  status: "Assigned" | "In Progress" | "Completed" | "Pending Approval" | "Pending Admin Approval" | "Missed" | "Pending Start Approval" | "Pending TL Approval";
+  status:
+    | "Assigned"
+    | "In Progress"
+    | "Completed"
+    | "Pending Approval"
+    | "Pending Admin Approval"
+    | "Missed"
+    | "Pending Start Approval"
+    | "Pending TL Approval";
   dueDate: string;
   assignedTo: AssignedUser[];
   createdByRole?: "admin" | "teamLead";
   assignedBy?: UserRef;
   adminApproved?: boolean;
+
   // execution
   startDate?: string | null;
   completedDate?: string | null;
@@ -111,6 +79,7 @@ type Task = {
   createdAt?: string;
   updatedAt?: string;
 };
+
 type StudentUiStatus =
   | "Assigned"
   | "In Progress"
@@ -121,8 +90,6 @@ type StudentUiStatus =
   | "Pending Start Approval"
   | "Pending TL Approval"
   | "WaitingApproval";
-
-
 
 const StudentTasks = () => {
   const navigate = useNavigate();
@@ -155,7 +122,11 @@ const StudentTasks = () => {
       let virtualStatus: TaskWithVirtual["virtualStatus"] = task.status;
 
       // 🔴 Compute Missed first: purely due + completion based
-      if (now > due && task.status !== "Completed" && (task.progress ?? 0) < 100) {
+      if (
+        now > due &&
+        task.status !== "Completed" &&
+        (task.progress ?? 0) < 100
+      ) {
         virtualStatus = "Missed";
       }
       // ✅ Completed tasks
@@ -177,8 +148,7 @@ const StudentTasks = () => {
       // 🔵 Admin approved but not started
       else if (task.adminApproved) {
         virtualStatus = "Assigned";
-      }
-      else if (task.status === "Assigned" && (task.progress ?? 0) === 0) {
+      } else if (task.status === "Assigned" && (task.progress ?? 0) === 0) {
         virtualStatus = "Assigned";
       }
 
@@ -191,7 +161,6 @@ const StudentTasks = () => {
     });
   }, [tasks, tick]);
 
-
   // Missed tasks: dueDate passed, not completed, not Pending Start Approval in future
   const missedTasks = processedTasks.filter(
     (task) => task.virtualStatus === "Missed"
@@ -200,44 +169,61 @@ const StudentTasks = () => {
   // Upcoming tasks: due in next 7 days, not completed, not missed
   const upcomingTasks = processedTasks.filter((task) => {
     const due = new Date(task.dueDate); // use exact due time from DB
-    return due > now && due <= new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
-      && task.virtualStatus !== "Missed";
+    return (
+      due > now &&
+      due <= new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) &&
+      task.virtualStatus !== "Missed"
+    );
   });
-
 
   // Main tasks list to render (Assigned / In Progress / etc.)
   const assignedTasks = processedTasks; // Use this for main dashboard rendering
 
   // Is this task blocked because TL portion is pending admin approval?
-  const isBlockedByTeamLeadApproval = (task: Task, me: CurrentUser | null): boolean => {
+  const isBlockedByTeamLeadApproval = (
+    task: Task,
+    me: CurrentUser | null
+  ): boolean => {
     if (!me) return false;
 
     // Find the role of the current user in this task
-    const meRoleInTask = task.assignedTo.find(u => u._id === me._id)?.role;
+    const meRoleInTask = task.assignedTo.find((u) => u._id === me._id)?.role;
     if (!meRoleInTask) return false;
 
     // Check if any TL is assigned to this task
-    const teamLeadAssigned = task.assignedTo.some(u => u.role === "teamLead");
+    const teamLeadAssigned = task.assignedTo.some(
+      (u) => u.role === "teamLead"
+    );
 
     // Block if a TL is assigned, status is Pending Admin Approval, and current user is NOT the TL
-    return teamLeadAssigned && task.status === STATUS_PENDING_ADMIN && meRoleInTask !== "teamLead";
+    return (
+      teamLeadAssigned &&
+      task.status === STATUS_PENDING_ADMIN &&
+      meRoleInTask !== "teamLead"
+    );
   };
 
-
   // Can the current user request approval for a task?
-  const canRequestApproval = (task: Task, me: CurrentUser | null): boolean => {
+  const canRequestApproval = (
+    task: Task,
+    me: CurrentUser | null
+  ): boolean => {
     if (!me) return false;
 
-    const meRoleInTask = task.assignedTo.find(u => u._id === me._id)?.role;
+    const meRoleInTask = task.assignedTo.find((u) => u._id === me._id)?.role;
     if (!meRoleInTask) return false;
 
-    const teamLeadAssigned = task.assignedTo.some(u => u.role === "teamLead");
-    const studentAssigned = task.assignedTo.some(u => u.role === "student");
+    const teamLeadAssigned = task.assignedTo.some(
+      (u) => u.role === "teamLead"
+    );
+    const studentAssigned = task.assignedTo.some((u) => u.role === "student");
 
     // Student logic
     if (meRoleInTask === "student") {
       // Student cannot request if TL portion is pending admin approval
-      if (teamLeadAssigned && task.status === STATUS_PENDING_ADMIN) return false;
+      if (teamLeadAssigned && task.status === STATUS_PENDING_ADMIN)
+        return false;
+
       return true; // Multiple students or single student without TL → can request directly
     }
 
@@ -261,11 +247,8 @@ const StudentTasks = () => {
     return false;
   };
 
-
-
-
   const handleStartTask = async (taskId: string) => {
-    const task = processedTasks.find(t => t._id === taskId);
+    const task = processedTasks.find((t) => t._id === taskId);
     if (!task) return;
 
     // 🔒 Block only truly missed tasks
@@ -281,15 +264,15 @@ const StudentTasks = () => {
 
       await updateTaskProgress(taskId, cappedProgress);
 
-      setTasks(prev =>
-        prev.map(t =>
+      setTasks((prev) =>
+        prev.map((t) =>
           t._id === task._id
             ? {
-              ...t,
-              progress: cappedProgress,
-              status: "In Progress",
-              // startDate: t.startDate || new Date().toISOString(),
-            }
+                ...t,
+                progress: cappedProgress,
+                status: "In Progress",
+                // startDate: t.startDate || new Date().toISOString(),
+              }
             : t
         )
       );
@@ -302,7 +285,6 @@ const StudentTasks = () => {
       setUpdating(null);
     }
   };
-
 
   const handleRequestApproval = async (taskId: string, isMissed: boolean) => {
     try {
@@ -320,12 +302,15 @@ const StudentTasks = () => {
 
   // add new function or modify
   const handleRequestStartPermission = async (taskId: string) => {
-    const task = processedTasks.find(t => t._id === taskId);
+    const task = processedTasks.find((t) => t._id === taskId);
 
     if (!task) return;
 
     // Only allow if truly missed and not already requested
-    if (task.virtualStatus !== "Missed" || task.status === "Pending Start Approval") {
+    if (
+      task.virtualStatus !== "Missed" ||
+      task.status === "Pending Start Approval"
+    ) {
       toast.error("This task is not eligible to request start permission.");
       return;
     }
@@ -342,7 +327,6 @@ const StudentTasks = () => {
       setUpdating(null);
     }
   };
-
 
   // Fetch current user
   useEffect(() => {
@@ -377,9 +361,10 @@ const StudentTasks = () => {
       }
     })();
 
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [navigate]);
-
 
   useEffect(() => {
     if (!me) return;
@@ -388,8 +373,6 @@ const StudentTasks = () => {
       try {
         const { data } = await fetchTasks(me.email);
         setTasks(data.tasks || []);
-
-
       } catch (err: any) {
         console.error("Error fetching tasks:", err);
 
@@ -403,18 +386,18 @@ const StudentTasks = () => {
       }
     })();
   }, [me, navigate]);
+
   useEffect(() => {
     const interval = setInterval(() => {
-      setTick(prev => prev + 1); // trigger re-render
+      setTick((prev) => prev + 1); // trigger re-render
     }, 30 * 1000);
 
     return () => clearInterval(interval);
   }, []);
 
-
-
   const refreshTasks = async () => {
     if (!me) return;
+
     try {
       const { data } = await fetchTasks(me.email);
       setTasks(data.tasks || []);
@@ -424,16 +407,6 @@ const StudentTasks = () => {
     }
   };
 
-  const displayName = me?.name || me?.email?.split("@")[0] || "Student";
-
-  const initials = useMemo(() => {
-    const base = (me?.name || me?.email || "NA").trim();
-    const parts = base.split(/[ ._@-]+/).filter(Boolean);
-    const first = parts[0]?.[0] ?? "";
-    const last = parts.length > 1 ? parts[parts.length - 1][0] : "";
-    return (first + last).toUpperCase() || "NA";
-  }, [me?.name, me?.email]);
-
   const handleLogout = () => {
     localStorage.removeItem("token");
     navigate("/");
@@ -441,6 +414,7 @@ const StudentTasks = () => {
 
   const getStatusBadge = (status: string) => {
     let base = "rounded-full px-3 py-1 transition-all duration-150";
+
     switch (status) {
       case "Completed":
         return `${base} bg-green-100 text-green-800 hover:bg-green-200`;
@@ -467,7 +441,8 @@ const StudentTasks = () => {
     const start = new Date(startRaw);
     const end = new Date(endRaw);
 
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return "-";
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()))
+      return "-";
     if (end.getTime() < start.getTime()) return "-";
 
     let diff = Math.floor((end.getTime() - start.getTime()) / 1000);
@@ -490,8 +465,10 @@ const StudentTasks = () => {
 
   const formatDate = (dateString?: string | null) => {
     if (!dateString) return "-";
+
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return "-";
+
     return date.toLocaleString([], {
       year: "numeric",
       month: "short",
@@ -501,8 +478,6 @@ const StudentTasks = () => {
       hour12: true,
     });
   };
-
-
 
   const openUpdateModal = (task: TaskWithVirtual) => {
     setSelectedTask(task);
@@ -547,8 +522,6 @@ const StudentTasks = () => {
   const canUpdateProgress = (task: TaskWithVirtual) =>
     task.virtualStatus === "In Progress";
 
-
-
   const handleStatusChange = async (taskId: string, newStatus: string) => {
     try {
       setUpdating(taskId);
@@ -558,7 +531,6 @@ const StudentTasks = () => {
 
       // 🔄 Always refetch fresh backend truth
       await refreshTasks();
-
     } catch (err) {
       console.error(err);
       toast.error("Failed to update task status.");
@@ -567,11 +539,10 @@ const StudentTasks = () => {
     }
   };
 
-
   const canRequestStartOrRestart = (task: TaskWithVirtual) =>
-    task.virtualStatus === "Missed" && !task.adminApproved && task.status !== "Pending Start Approval";
-
-
+    task.virtualStatus === "Missed" &&
+    !task.adminApproved &&
+    task.status !== "Pending Start Approval";
 
   const getStudentUiStatus = (task: TaskWithVirtual): StudentUiStatus => {
     if (task.status === "Completed") return "Completed";
@@ -588,58 +559,35 @@ const StudentTasks = () => {
       return "WaitingApproval";
     }
 
-    if (task.wasStarted || (task.progress && task.progress > 0)) return "In Progress";
+    if (task.wasStarted || (task.progress && task.progress > 0))
+      return "In Progress";
     if (task.adminApproved) return "Assigned";
+
     return task.virtualStatus as StudentUiStatus;
   };
-
 
   const openViewDetails = (task: Task) => setViewTask(task);
 
   return (
-    <div className="min-h-screen flex flex-col">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-            <UserIcon className="w-5 h-5 text-primary-foreground" />
-          </div>
-          <div>
-            <h1 className="text-lg font-semibold text-foreground">Student Dashboard</h1>
-            <p className="text-sm text-muted-foreground">CS&IT Internship Program</p>
-          </div>
-        </div>
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2">
-            <span className="text-sm font-medium text-foreground">
-              {loadingMe ? "Loading..." : displayName}
-            </span>
-            <Avatar className="h-8 w-8">
-              <AvatarImage src={me?.picture || ""} alt={displayName} />
-              <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                {initials}
-              </AvatarFallback>
-            </Avatar>
-          </div>
-          <Button
-            onClick={handleLogout}
-            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg"
-          >
-            Logout
-          </Button>
-        </div>
-      </header>
+    <div className="min-h-screen bg-gray-50">
+      <StudentSidebar activeItem="My Tasks" />
 
-      <div className="flex flex-1">
-        {/* Sidebar */}
-        <Sidebar user={me} loadingUser={loadingMe} />
+      <div className="ml-64">
+        <StudentNavbar
+          me={me}
+          loadingMe={loadingMe}
+          onLogout={handleLogout}
+        />
 
         {/* Main Content */}
-        <div className="flex-1 p-6 overflow-auto">
+        <main className="min-h-[calc(100vh-73px)] p-6 overflow-auto">
           {/* Upcoming Tasks */}
           {upcomingTasks.length > 0 && (
             <div className="mb-6">
-              <h2 className="text-lg font-bold mb-3 text-red-600">⏰ Upcoming Tasks This Week</h2>
+              <h2 className="text-lg font-bold mb-3 text-red-600">
+                ⏰ Upcoming Tasks This Week
+              </h2>
+
               <div className="flex space-x-3 overflow-x-auto pb-2">
                 {upcomingTasks.map((task) => (
                   <Card
@@ -648,14 +596,21 @@ const StudentTasks = () => {
                   >
                     <CardContent className="p-0">
                       <h3 className="font-bold">{task.title}</h3>
-                      <p className="text-gray-700 text-sm">{task.description}</p>
+                      <p className="text-gray-700 text-sm">
+                        {task.description}
+                      </p>
+
                       {/* Assigned By */}
                       {task.assignedBy && (
                         <p className="text-gray-500 text-sm mt-1">
-                          <span className="font-medium">Assigned By:</span> {task.assignedBy.name}
+                          <span className="font-medium">Assigned By:</span>{" "}
+                          {task.assignedBy.name}
                         </p>
                       )}
-                      <p className="text-red-600 text-sm font-medium">{formatDate(task.dueDate)}</p>
+
+                      <p className="text-red-600 text-sm font-medium">
+                        {formatDate(task.dueDate)}
+                      </p>
                     </CardContent>
                   </Card>
                 ))}
@@ -666,7 +621,10 @@ const StudentTasks = () => {
           {/* Missed Tasks */}
           {missedTasks.length > 0 && (
             <div className="mb-6">
-              <h2 className="text-lg font-bold mb-3 text-red-700">⚠️ Missed Tasks</h2>
+              <h2 className="text-lg font-bold mb-3 text-red-700">
+                ⚠️ Missed Tasks
+              </h2>
+
               <div className="flex space-x-3 overflow-x-auto pb-2">
                 {missedTasks.map((task) => (
                   <Card
@@ -675,14 +633,21 @@ const StudentTasks = () => {
                   >
                     <CardContent className="p-0">
                       <h3 className="font-bold">{task.title}</h3>
-                      <p className="text-gray-700 text-sm">{task.description}</p>
+                      <p className="text-gray-700 text-sm">
+                        {task.description}
+                      </p>
+
                       {/* Assigned By */}
                       {task.assignedBy && (
                         <p className="text-gray-500 text-sm mt-1">
-                          <span className="font-medium">Assigned By:</span> {task.assignedBy.name}
+                          <span className="font-medium">Assigned By:</span>{" "}
+                          {task.assignedBy.name}
                         </p>
                       )}
-                      <p className="text-red-700 text-sm font-medium">{formatDate(task.dueDate)}</p>
+
+                      <p className="text-red-700 text-sm font-medium">
+                        {formatDate(task.dueDate)}
+                      </p>
                     </CardContent>
                   </Card>
                 ))}
@@ -690,74 +655,109 @@ const StudentTasks = () => {
             </div>
           )}
 
-
           {/* My Tasks */}
           <h2 className="text-2xl font-bold mb-4">My Tasks</h2>
+
           <div className="space-y-4">
             {processedTasks.map((task) => {
               const getLeftBorderColor = (status: StudentUiStatus) => {
                 switch (status) {
-                  case "Assigned": return "border-l-4 border-blue-600";
-                  case "In Progress": return "border-l-4 border-yellow-500";
-                  case "Pending Approval": return "border-l-4 border-amber-700";
-                  case "Pending Admin Approval": return "border-l-4 border-purple-500";
-                  case "Completed": return "border-l-4 border-green-600";
-                  case "Missed": return "border-l-4 border-red-600";
-                  case "Pending TL Approval": return "border-l-4 border-orange-600";
-                  case "Pending Start Approval": return "border-l-4 border-indigo-500";
-                  case "WaitingApproval": return "border-l-4 border-purple-300"; // for UI only
-                  default: return "";
+                  case "Assigned":
+                    return "border-l-4 border-blue-600";
+                  case "In Progress":
+                    return "border-l-4 border-yellow-500";
+                  case "Pending Approval":
+                    return "border-l-4 border-amber-700";
+                  case "Pending Admin Approval":
+                    return "border-l-4 border-purple-500";
+                  case "Completed":
+                    return "border-l-4 border-green-600";
+                  case "Missed":
+                    return "border-l-4 border-red-600";
+                  case "Pending TL Approval":
+                    return "border-l-4 border-orange-600";
+                  case "Pending Start Approval":
+                    return "border-l-4 border-indigo-500";
+                  case "WaitingApproval":
+                    return "border-l-4 border-purple-300"; // for UI only
+                  default:
+                    return "";
                 }
               };
 
               const getBackgroundColor = (status: StudentUiStatus) => {
                 switch (status) {
-                  case "Assigned": return "bg-blue-50";
-                  case "In Progress": return "bg-yellow-50";
-                  case "Pending Approval": return "bg-amber-50";
-                  case "Pending Admin Approval": return "bg-purple-50";
-                  case "Completed": return "bg-green-50";
-                  case "Missed": return "bg-red-50";
-                  case "Pending Start Approval": return "bg-indigo-50";
-                  case "WaitingApproval": return "bg-purple-100"; // for UI only
-                  case "Pending TL Approval": return "bg-orange-50";
-                  default: return "bg-white";
+                  case "Assigned":
+                    return "bg-blue-50";
+                  case "In Progress":
+                    return "bg-yellow-50";
+                  case "Pending Approval":
+                    return "bg-amber-50";
+                  case "Pending Admin Approval":
+                    return "bg-purple-50";
+                  case "Completed":
+                    return "bg-green-50";
+                  case "Missed":
+                    return "bg-red-50";
+                  case "Pending Start Approval":
+                    return "bg-indigo-50";
+                  case "WaitingApproval":
+                    return "bg-purple-100"; // for UI only
+                  case "Pending TL Approval":
+                    return "bg-orange-50";
+                  default:
+                    return "bg-white";
                 }
               };
 
               const canMarkComplete = (task: Task) =>
-                (task.progress ?? 0) >= 100 && task.status !== "Pending Approval";
-              const uiStatus: StudentUiStatus = getStudentUiStatus(task);
+                (task.progress ?? 0) >= 100 &&
+                task.status !== "Pending Approval";
 
+              const uiStatus: StudentUiStatus = getStudentUiStatus(task);
 
               return (
                 <Card
                   key={task._id}
-                  className={`p-5 shadow-sm rounded-xl ml-1 relative ${getLeftBorderColor(uiStatus)} ${getBackgroundColor(uiStatus)}`}
+                  className={`p-5 shadow-sm rounded-xl ml-1 relative ${getLeftBorderColor(
+                    uiStatus
+                  )} ${getBackgroundColor(uiStatus)}`}
                 >
                   <CardContent className="p-0">
                     <div className="flex items-center justify-between mb-2">
                       <div>
-                        <h3 className="text-lg font-bold text-gray-900">{task.title}</h3>
+                        <h3 className="text-lg font-bold text-gray-900">
+                          {task.title}
+                        </h3>
+
                         {task.subHeading && (
-                          <p className="text-gray-500 text-sm">{task.subHeading}</p>
+                          <p className="text-gray-500 text-sm">
+                            {task.subHeading}
+                          </p>
                         )}
                       </div>
-                      <Badge className={getStatusBadge(uiStatus)}>{uiStatus}</Badge>
+
+                      <Badge className={getStatusBadge(uiStatus)}>
+                        {uiStatus}
+                      </Badge>
                     </div>
 
-                    <p className="text-gray-700 text-sm mb-3">{task.description}</p>
+                    <p className="text-gray-700 text-sm mb-3">
+                      {task.description}
+                    </p>
+
                     {task.assignedBy && (
                       <p className="text-gray-500 text-sm mt-1">
-                        <span className="font-medium">Assigned By:</span> {task.assignedBy.name}
+                        <span className="font-medium">Assigned By:</span>{" "}
+                        {task.assignedBy.name}
                       </p>
                     )}
 
                     <div className="flex justify-between items-center mt-4">
                       <p className="text-gray-600 text-sm">
-                        <span className="font-medium">Due Date:</span> {formatDate(task.dueDate)}
+                        <span className="font-medium">Due Date:</span>{" "}
+                        {formatDate(task.dueDate)}
                       </p>
-
 
                       <div className="flex gap-2">
                         {/* 1️⃣ Missed or Pending Start Approval → Request Start/Restart Permission */}
@@ -765,28 +765,31 @@ const StudentTasks = () => {
                           <Button
                             size="sm"
                             className="bg-amber-500 hover:bg-amber-600 text-white"
-                            onClick={() => handleRequestStartPermission(task._id)}
+                            onClick={() =>
+                              handleRequestStartPermission(task._id)
+                            }
                             disabled={
-                              updating === task._id || task.virtualStatus !== "Missed" || task.adminApproved
+                              updating === task._id ||
+                              task.virtualStatus !== "Missed" ||
+                              task.adminApproved
                             }
                           >
                             Request Permission to Start
                           </Button>
-
-
                         )}
 
-
-                        {uiStatus === "Assigned" && !task.wasStarted && !task.adminApproved && (
-                          <Button
-                            size="sm"
-                            className="bg-blue-600 hover:bg-blue-500 text-white"
-                            onClick={() => handleStartTask(task._id)}
-                            disabled={updating === task._id}
-                          >
-                            Start Task
-                          </Button>
-                        )}
+                        {uiStatus === "Assigned" &&
+                          !task.wasStarted &&
+                          !task.adminApproved && (
+                            <Button
+                              size="sm"
+                              className="bg-blue-600 hover:bg-blue-500 text-white"
+                              onClick={() => handleStartTask(task._id)}
+                              disabled={updating === task._id}
+                            >
+                              Start Task
+                            </Button>
+                          )}
 
                         {/* 3️⃣ In Progress → Update & Request Approval */}
                         {uiStatus === "In Progress" && (
@@ -803,8 +806,13 @@ const StudentTasks = () => {
                             <Button
                               size="sm"
                               className="bg-amber-500 hover:bg-amber-600 text-white"
-                              onClick={() => handleRequestApproval(task._id, false)}
-                              disabled={(task.progress ?? 0) < 100 || !canRequestApproval(task, me)}
+                              onClick={() =>
+                                handleRequestApproval(task._id, false)
+                              }
+                              disabled={
+                                (task.progress ?? 0) < 100 ||
+                                !canRequestApproval(task, me)
+                              }
                             >
                               Request Approval
                             </Button>
@@ -823,35 +831,35 @@ const StudentTasks = () => {
                           </Button>
                         )}
 
-
                         {/* 5️⃣ Completed → View Details */}
                         {task.virtualStatus === "Completed" && (
                           <Button
                             size="sm"
                             className="bg-gray-500 hover:bg-gray-400 text-white"
                             onClick={() => {
-                              const latestTask = tasks.find(t => t._id === task._id) || task;
+                              const latestTask =
+                                tasks.find((t) => t._id === task._id) || task;
                               openViewDetails(latestTask);
                             }}
                           >
                             View Details
                           </Button>
                         )}
-
                       </div>
-
-
                     </div>
                   </CardContent>
                 </Card>
               );
             })}
           </div>
-        </div>
+        </main>
       </div>
 
       {/* -------------------- Update Progress Modal -------------------- */}
-      <Dialog open={showUpdateModal} onOpenChange={(open) => setShowUpdateModal(open)}>
+      <Dialog
+        open={showUpdateModal}
+        onOpenChange={(open) => setShowUpdateModal(open)}
+      >
         <DialogContent className="sm:max-w-md w-full p-6">
           <DialogHeader>
             <DialogTitle>Update Task Progress</DialogTitle>
@@ -863,18 +871,19 @@ const StudentTasks = () => {
           </p>
 
           {/* Slider */}
-          {/* Slider */}
           <Slider
             value={[progress]}
             onValueChange={(v: number[]) => setProgress(v[0])}
             min={selectedTask?.progress ?? 0} // ⬅ minimum is current progress
             max={100}
             step={1}
-            disabled={selectedTask ? isBlockedByTeamLeadApproval(selectedTask, me) : false}
+            disabled={
+              selectedTask
+                ? isBlockedByTeamLeadApproval(selectedTask, me)
+                : false
+            }
             className="mb-2"
           />
-
-
 
           {selectedTask && isBlockedByTeamLeadApproval(selectedTask, me) && (
             <p className="text-xs text-red-600 mb-3">
@@ -896,24 +905,28 @@ const StudentTasks = () => {
         </DialogContent>
       </Dialog>
 
-
       {/* View Details Modal */}
       <Dialog open={!!viewTask} onOpenChange={() => setViewTask(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Task Details</DialogTitle>
           </DialogHeader>
+
           {viewTask && (
             <div className="space-y-2">
               <p>
                 <strong>Title:</strong> {viewTask.title}
               </p>
+
               <p>
                 <strong>Description:</strong> {viewTask.description}
               </p>
+
               <p>
-                <strong>Assigned To:</strong> {viewTask.assignedTo.map((a) => a.name).join(", ")}
+                <strong>Assigned To:</strong>{" "}
+                {viewTask.assignedTo.map((a) => a.name).join(", ")}
               </p>
+
               {viewTask.assignedBy && (
                 <p>
                   <strong>Assigned By:</strong> {viewTask.assignedBy.name}
@@ -923,21 +936,23 @@ const StudentTasks = () => {
               <p>
                 <strong>Start Date:</strong> {formatDate(viewTask.startDate)}
               </p>
+
               <p>
                 <strong>End Date:</strong> {formatDate(viewTask.completedDate)}
               </p>
+
               <p>
                 <strong>Due Date:</strong> {formatDate(viewTask.dueDate)}
               </p>
 
-
-
               <p>
                 <strong>Progress:</strong> {viewTask.progress ?? 0}%
               </p>
+
               <p>
                 <strong>Status:</strong> {viewTask.status}
               </p>
+
               <p>
                 <strong>Time Taken:</strong> {timeTaken(viewTask)}
               </p>

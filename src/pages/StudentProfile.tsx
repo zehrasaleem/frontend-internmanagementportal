@@ -1,19 +1,13 @@
-// client/src/pages/StudentProfile.tsx
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import {
-  LayoutDashboard,
-  CheckSquare,
-  Calendar,
-  Users,
-  User as UserIcon,
-  Edit,
-} from "lucide-react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { Edit, Save, X } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import api from "@/api/api";
+import StudentSidebar from "@/components/students/StudentSidebar";
+import StudentNavbar from "@/components/students/StudentNavbar";
 
 type CurrentUser = {
   _id: string;
@@ -25,23 +19,33 @@ type CurrentUser = {
   discipline?: string;
   semester?: string;
   rollNo?: string;
-  dateOfJoining?: string; // ISO string
+  dateOfJoining?: string;
+};
+
+type ProfileForm = {
+  name: string;
+  phoneNumber: string;
+  discipline: string;
+  semester: string;
+  rollNo: string;
 };
 
 const StudentProfile = () => {
   const navigate = useNavigate();
-  const location = useLocation();
 
   const [me, setMe] = useState<CurrentUser | null>(null);
   const [loadingMe, setLoadingMe] = useState(true);
 
-  const sidebarItems = [
-    { icon: LayoutDashboard, label: "Dashboard", path: "/student-dashboard" },
-    { icon: CheckSquare, label: "My Tasks", path: "/student-tasks" },
-    { icon: Users, label: "Attendance", path: "/student-attendance" },
-    { icon: Calendar, label: "Timetable & Scheduling", path: "/student-timetable" },
-    { icon: UserIcon, label: "Profile", path: "/student-profile" },
-  ];
+  const [editMode, setEditMode] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  const [profileForm, setProfileForm] = useState<ProfileForm>({
+    name: "",
+    phoneNumber: "",
+    discipline: "",
+    semester: "",
+    rollNo: "",
+  });
 
   // Fetch current user
   useEffect(() => {
@@ -62,6 +66,18 @@ const StudentProfile = () => {
     };
   }, [navigate]);
 
+  useEffect(() => {
+    if (!me || editMode) return;
+
+    setProfileForm({
+      name: me.name || "",
+      phoneNumber: me.phoneNumber || "",
+      discipline: me.discipline || "",
+      semester: me.semester || "",
+      rollNo: me.rollNo || "",
+    });
+  }, [me, editMode]);
+
   const displayName =
     me?.name || (me?.email ? me.email.split("@")[0] : "Student");
 
@@ -74,13 +90,9 @@ const StudentProfile = () => {
   }, [me?.name, me?.email]);
 
   const handleLogout = () => {
-  localStorage.removeItem("token");
-  localStorage.removeItem("currentUser");
-  navigate("/");
-};
-
-  const handleNavigation = (path: string) => {
-    navigate(path);
+    localStorage.removeItem("token");
+    localStorage.removeItem("currentUser");
+    navigate("/");
   };
 
   const formatDate = (iso?: string) => {
@@ -89,68 +101,88 @@ const StudentProfile = () => {
     return isNaN(d.getTime()) ? "—" : d.toLocaleDateString();
   };
 
+  const handleEditProfile = () => {
+    if (!me) return;
+
+    setProfileForm({
+      name: me.name || "",
+      phoneNumber: me.phoneNumber || "",
+      discipline: me.discipline || "",
+      semester: me.semester || "",
+      rollNo: me.rollNo || "",
+    });
+
+    setEditMode(true);
+  };
+
+  const handleCancelEdit = () => {
+    if (!me) return;
+
+    setProfileForm({
+      name: me.name || "",
+      phoneNumber: me.phoneNumber || "",
+      discipline: me.discipline || "",
+      semester: me.semester || "",
+      rollNo: me.rollNo || "",
+    });
+
+    setEditMode(false);
+  };
+
+  const handleProfileChange = (field: keyof ProfileForm, value: string) => {
+    setProfileForm((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const handleSaveProfile = async () => {
+    try {
+      setSavingProfile(true);
+
+      const payload = {
+        name: profileForm.name.trim(),
+        phoneNumber: profileForm.phoneNumber.trim(),
+        discipline: profileForm.discipline.trim(),
+        semester: profileForm.semester.trim(),
+        rollNo: profileForm.rollNo.trim(),
+      };
+
+      const { data } = await api.put("/auth/me", payload);
+
+      const updatedUser = data.user || data;
+
+      setMe(updatedUser);
+      localStorage.setItem("currentUser", JSON.stringify(updatedUser));
+
+      setEditMode(false);
+    } catch (err: any) {
+      alert(
+        err?.response?.data?.message ||
+          "Failed to update profile. Please try again."
+      );
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="bg-white border-b border-border px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-            <UserIcon className="w-5 h-5 text-primary-foreground" />
-          </div>
-          <div>
-            <h1 className="text-lg font-semibold text-foreground">Student Dashboard</h1>
-            <p className="text-sm text-muted-foreground">
-              CS&IT Internship Program
-            </p>
-          </div>
-        </div>
+      <StudentSidebar activeItem="Profile" />
 
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2">
-            <span className="text-sm font-medium text-foreground">
-              {loadingMe ? "Loading..." : displayName}
-            </span>
-            <Avatar className="h-8 w-8">
-              <AvatarImage src={me?.picture || ""} alt={displayName} />
-              <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                {initials}
-              </AvatarFallback>
-            </Avatar>
-          </div>
-          <Button
-            onClick={handleLogout}
-            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg"
-          >
-            Logout
-          </Button>
-        </div>
-      </header>
-
-      <div className="flex">
-        {/* Sidebar */}
-        <div className="w-64 bg-white border-r border-border min-h-screen">
-          <nav className="p-4 space-y-2">
-            {sidebarItems.map((item) => (
-              <button
-                key={item.label}
-                onClick={() => handleNavigation(item.path)}
-                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${
-                  location.pathname === item.path
-                    ? "bg-primary/10 text-primary border-l-4 border-primary"
-                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                }`}
-              >
-                <item.icon className="w-5 h-5 flex-shrink-0" />
-                <span className="font-medium text-sm leading-tight">{item.label}</span>
-              </button>
-            ))}
-          </nav>
-        </div>
+      <div className="ml-64">
+        <StudentNavbar
+          me={me}
+          loadingMe={loadingMe}
+          onLogout={handleLogout}
+        />
 
         {/* Main Content */}
-        <div className="flex-1 p-6 bg-gray-50">
+        <main className="min-h-[calc(100vh-73px)] p-6 bg-gray-50">
           <div className="max-w-7xl mx-auto">
-            <h2 className="text-2xl font-bold text-foreground mb-6">My Profile</h2>
+            <h2 className="text-2xl font-bold text-foreground mb-6">
+              My Profile
+            </h2>
 
             {/* Profile Header */}
             <div className="flex items-center space-x-4 mb-8">
@@ -178,6 +210,24 @@ const StudentProfile = () => {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
+                    <p className="text-sm text-muted-foreground">Name:</p>
+                    {editMode ? (
+                      <Input
+                        value={profileForm.name}
+                        onChange={(e) =>
+                          handleProfileChange("name", e.target.value)
+                        }
+                        placeholder="Enter name"
+                        className="mt-1"
+                      />
+                    ) : (
+                      <p className="text-sm font-medium text-foreground">
+                        {me?.name || "—"}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
                     <p className="text-sm text-muted-foreground">Email:</p>
                     <p className="text-sm font-medium text-foreground">
                       {me?.email || "—"}
@@ -186,23 +236,58 @@ const StudentProfile = () => {
 
                   <div>
                     <p className="text-sm text-muted-foreground">Phone:</p>
-                    <p className="text-sm font-medium text-foreground">
-                      {me?.phoneNumber || "—"}
-                    </p>
+                    {editMode ? (
+                      <Input
+                        value={profileForm.phoneNumber}
+                        onChange={(e) =>
+                          handleProfileChange("phoneNumber", e.target.value)
+                        }
+                        placeholder="Enter phone number"
+                        className="mt-1"
+                      />
+                    ) : (
+                      <p className="text-sm font-medium text-foreground">
+                        {me?.phoneNumber || "—"}
+                      </p>
+                    )}
                   </div>
 
                   <div>
-                    <p className="text-sm text-muted-foreground">Department / Discipline:</p>
-                    <p className="text-sm font-medium text-foreground">
-                      {me?.discipline || "—"}
+                    <p className="text-sm text-muted-foreground">
+                      Department / Discipline:
                     </p>
+                    {editMode ? (
+                      <Input
+                        value={profileForm.discipline}
+                        onChange={(e) =>
+                          handleProfileChange("discipline", e.target.value)
+                        }
+                        placeholder="Enter discipline"
+                        className="mt-1"
+                      />
+                    ) : (
+                      <p className="text-sm font-medium text-foreground">
+                        {me?.discipline || "—"}
+                      </p>
+                    )}
                   </div>
 
                   <div>
                     <p className="text-sm text-muted-foreground">Semester:</p>
-                    <p className="text-sm font-medium text-foreground">
-                      {me?.semester || "—"}
-                    </p>
+                    {editMode ? (
+                      <Input
+                        value={profileForm.semester}
+                        onChange={(e) =>
+                          handleProfileChange("semester", e.target.value)
+                        }
+                        placeholder="Enter semester"
+                        className="mt-1"
+                      />
+                    ) : (
+                      <p className="text-sm font-medium text-foreground">
+                        {me?.semester || "—"}
+                      </p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -217,9 +302,20 @@ const StudentProfile = () => {
                 <CardContent className="space-y-4">
                   <div>
                     <p className="text-sm text-muted-foreground">Roll No:</p>
-                    <p className="text-sm font-medium text-foreground">
-                      {me?.rollNo || "—"}
-                    </p>
+                    {editMode ? (
+                      <Input
+                        value={profileForm.rollNo}
+                        onChange={(e) =>
+                          handleProfileChange("rollNo", e.target.value)
+                        }
+                        placeholder="Enter roll number"
+                        className="mt-1"
+                      />
+                    ) : (
+                      <p className="text-sm font-medium text-foreground">
+                        {me?.rollNo || "—"}
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -238,15 +334,42 @@ const StudentProfile = () => {
               </Card>
             </div>
 
-            {/* Edit Profile Button */}
-            <div className="flex justify-start">
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2">
-                <Edit className="w-4 h-4 mr-2" />
-                EDIT PROFILE
-              </Button>
+            {/* Edit / Save Profile Buttons */}
+            <div className="flex justify-start gap-3">
+              {editMode ? (
+                <>
+                  <Button
+                    onClick={handleSaveProfile}
+                    disabled={savingProfile}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2"
+                  >
+                    <Save className="w-4 h-4 mr-2" />
+                    {savingProfile ? "SAVING..." : "SAVE CHANGES"}
+                  </Button>
+
+                  <Button
+                    onClick={handleCancelEdit}
+                    disabled={savingProfile}
+                    variant="outline"
+                    className="px-6 py-2"
+                  >
+                    <X className="w-4 h-4 mr-2" />
+                    CANCEL
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  onClick={handleEditProfile}
+                  disabled={loadingMe || !me}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2"
+                >
+                  <Edit className="w-4 h-4 mr-2" />
+                  EDIT PROFILE
+                </Button>
+              )}
             </div>
           </div>
-        </div>
+        </main>
       </div>
     </div>
   );

@@ -126,12 +126,6 @@ if (showSignUp) {
               >
                 Password
               </label>
-              <button
-                type="button"
-                className="text-blue-600 text-sm font-medium hover:text-blue-700"
-              >
-                Forgot your password?
-              </button>
             </div>
             <div className="relative">
               <Input
@@ -205,24 +199,6 @@ if (showSignUp) {
           </svg>
           <span className="font-medium text-gray-700">Continue with Google</span>
         </Button>
-
-        <div className="mt-6 pt-4 border-t border-gray-200">
-          <p className="text-sm text-gray-700 mb-3 font-semibold">Demo Accounts</p>
-          <div className="space-y-2">
-            <div className="text-sm">
-              <span className="font-semibold text-blue-600">Admin:</span>{" "}
-              <span className="text-gray-700">
-                admin@cloud.neduet.edu.pk / admin123
-              </span>
-            </div>
-            <div className="text-sm">
-              <span className="font-semibold text-blue-600">Student:</span>{" "}
-              <span className="text-gray-700">
-                student@cloud.neduet.edu.pk / student123
-              </span>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );
