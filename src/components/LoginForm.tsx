@@ -176,7 +176,7 @@ if (showSignUp) {
           variant="outline"
           className="w-full h-12 mt-4 border-2 border-gray-200 rounded-xl hover:bg-gray-50 transition-colors flex items-center justify-center space-x-3 bg-white"
           onClick={() =>
-            (window.location.href = "http://localhost:5000/api/google")
+            (window.location.href = `${import.meta.env.VITE_API_URL}/google`)
           }
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24">

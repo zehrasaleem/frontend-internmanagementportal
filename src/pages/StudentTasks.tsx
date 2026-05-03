@@ -337,7 +337,7 @@ const StudentTasks = () => {
         const token = localStorage.getItem("token");
         if (!token) return navigate("/login");
 
-        const res = await fetch("http://localhost:5000/api/auth/me", {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/me`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
