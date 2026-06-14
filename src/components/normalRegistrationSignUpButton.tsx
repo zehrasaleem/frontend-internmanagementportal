@@ -14,6 +14,7 @@ import api from "../api/api";
 
 type Step = "collect" | "otp" | "profile";
 type Role = "student" | "admin";
+type MessageType = "error" | "success";
 
 export default function normalRegistrationSignUpButton() {
   const navigate = useNavigate();
@@ -31,6 +32,7 @@ export default function normalRegistrationSignUpButton() {
   const [discipline, setDiscipline] = useState("");
   const [batch, setBatch] = useState("");
   const [rollNo, setRollNo] = useState("");
+  const [supervisorEmail, setSupervisorEmail] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [semester, setSemester] = useState("");
   const [dateOfJoining, setDateOfJoining] = useState<string>("");
@@ -40,6 +42,7 @@ export default function normalRegistrationSignUpButton() {
   const [verifying, setVerifying] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [messageType, setMessageType] = useState<MessageType>("error");
 
   const requestOtp = async () => {
     setSending(true);
@@ -50,8 +53,10 @@ export default function normalRegistrationSignUpButton() {
         password,
       });
       setStep("otp");
+      setMessageType("success");
       setMessage("We’ve emailed you a 6-digit code.");
     } catch (e: any) {
+      setMessageType("error");
       setMessage(e?.response?.data?.message || "Could not send OTP");
     } finally {
       setSending(false);
@@ -70,6 +75,7 @@ export default function normalRegistrationSignUpButton() {
       setStep("profile");
       setMessage(null);
     } catch (e: any) {
+      setMessageType("error");
       setMessage(e?.response?.data?.message || "Invalid OTP");
     } finally {
       setVerifying(false);
@@ -79,9 +85,13 @@ export default function normalRegistrationSignUpButton() {
   const completeProfile = async () => {
     setSaving(true);
     setMessage(null);
+
     try {
-      if (role === "student" && (!discipline || !batch || !rollNo)) {
-        setMessage("Please fill discipline, batch, and roll number.");
+      if (role === "student" && (!discipline || !batch || !rollNo || !supervisorEmail)) {
+        setMessageType("error");
+        setMessage(
+          "Please fill discipline, batch, roll number, and supervisor/admin email."
+        );
         setSaving(false);
         return;
       }
@@ -93,11 +103,25 @@ export default function normalRegistrationSignUpButton() {
         discipline: role === "student" ? discipline : undefined,
         batch: role === "student" ? batch : undefined,
         rollNo: role === "student" ? rollNo : undefined,
+        supervisorEmail:
+          role === "student" ? supervisorEmail.toLowerCase().trim() : undefined,
         phoneNumber,
         semester: role === "student" ? semester : undefined,
         dateOfJoining:
           role === "student" && dateOfJoining ? dateOfJoining : undefined,
       });
+
+      if (data?.pendingApproval) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("currentUser");
+
+        setMessageType("success");
+        setMessage(
+          data?.message ||
+            "Signup request submitted. You can login after approval."
+        );
+        return;
+      }
 
       if (data?.token) {
         localStorage.setItem("token", data.token);
@@ -110,13 +134,26 @@ export default function normalRegistrationSignUpButton() {
       const userRole: Role = data?.user?.role || "student";
       navigate(userRole === "admin" ? "/admin-dashboard" : "/student-dashboard");
     } catch (e: any) {
+      setMessageType("error");
       setMessage(e?.response?.data?.message || "Could not complete registration");
     } finally {
       setSaving(false);
     }
   };
 
-  // ✅ CLEAN RETURN (gap removed)
+  const handleRoleChange = (value: Role) => {
+    setRole(value);
+
+    if (value === "admin") {
+      setDiscipline("");
+      setBatch("");
+      setRollNo("");
+      setSupervisorEmail("");
+      setSemester("");
+      setDateOfJoining("");
+    }
+  };
+
   return (
     <div className="w-full">
       <Card className="w-full max-w-md mx-auto shadow-lg border border-gray-200">
@@ -208,7 +245,7 @@ export default function normalRegistrationSignUpButton() {
 
               <div>
                 <label className="block text-sm font-medium mb-1">Role</label>
-                <Select value={role} onValueChange={(v: Role) => setRole(v)}>
+                <Select value={role} onValueChange={(v: Role) => handleRoleChange(v)}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select your role" />
                   </SelectTrigger>
@@ -221,6 +258,18 @@ export default function normalRegistrationSignUpButton() {
 
               {role === "student" && (
                 <>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Supervisor/Admin Email
+                    </label>
+                    <Input
+                      type="email"
+                      value={supervisorEmail}
+                      onChange={(e) => setSupervisorEmail(e.target.value)}
+                      placeholder="admin@cloud.neduet.edu.pk"
+                    />
+                  </div>
+
                   <div>
                     <label className="block text-sm font-medium mb-1">
                       Discipline
@@ -301,12 +350,20 @@ export default function normalRegistrationSignUpButton() {
                 onClick={completeProfile}
                 disabled={saving || !fullName}
               >
-                {saving ? "Saving..." : "Complete Registration"}
+                {saving ? "Submitting..." : "Submit Signup Request"}
               </Button>
             </>
           )}
 
-          {message && <p className="text-sm text-red-600">{message}</p>}
+          {message && (
+            <p
+              className={`text-sm ${
+                messageType === "success" ? "text-green-600" : "text-red-600"
+              }`}
+            >
+              {message}
+            </p>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -37,19 +37,43 @@ const formSchema = z
     role: z.enum(["student", "admin"], {
       required_error: "Please select a role",
     }),
+    password: z.string().min(6, "Password must be at least 6 characters"),
+    confirmPassword: z.string().min(1, "Please confirm your password"),
     discipline: z.string().optional(),
     batch: z.string().optional(),
     rollNo: z.string().optional(),
+    supervisorEmail: z.string().optional(),
     phoneNumber: z.string().min(1, "Phone number is required"),
     semester: z.string().optional(),
     dateOfJoining: z.string().optional(),
   })
+  .refine((d) => d.password === d.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  })
   .refine(
     (d) =>
       d.role === "student"
-        ? !!d.discipline && !!d.batch && !!d.rollNo
+        ? !!d.discipline &&
+          !!d.batch &&
+          !!d.rollNo &&
+          !!d.supervisorEmail &&
+          !!d.semester
         : true,
-    { message: "All student fields are required", path: ["discipline"] }
+    {
+      message: "All student fields are required",
+      path: ["discipline"],
+    }
+  )
+  .refine(
+    (d) =>
+      d.role === "student"
+        ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.supervisorEmail || "")
+        : true,
+    {
+      message: "Enter a valid supervisor/admin email",
+      path: ["supervisorEmail"],
+    }
   );
 
 type FormData = z.infer<typeof formSchema>;
@@ -62,6 +86,7 @@ const GoogleSignupForm: React.FC<{
   const [selectedRole, setSelectedRole] = useState<"student" | "admin">(
     "student"
   );
+
   const navigate = useNavigate();
 
   const form = useForm<FormData>({
@@ -69,9 +94,12 @@ const GoogleSignupForm: React.FC<{
     defaultValues: {
       fullName: "",
       role: "student",
+      password: "",
+      confirmPassword: "",
       discipline: "",
       batch: "",
       rollNo: "",
+      supervisorEmail: "",
       phoneNumber: "",
       semester: "",
       dateOfJoining: "",
@@ -82,11 +110,16 @@ const GoogleSignupForm: React.FC<{
   const handleSubmit = async (data: FormData) => {
     try {
       const payload = {
-        fullName: data.fullName,
+        fullName: data.fullName.trim(),
         role: data.role,
+        password: data.password,
         discipline: data.role === "student" ? data.discipline : undefined,
         batch: data.role === "student" ? data.batch : undefined,
         rollNo: data.role === "student" ? data.rollNo : undefined,
+        supervisorEmail:
+          data.role === "student"
+            ? data.supervisorEmail?.toLowerCase().trim()
+            : undefined,
         phoneNumber: data.phoneNumber,
         semester: data.role === "student" ? data.semester : undefined,
         dateOfJoining:
@@ -95,36 +128,34 @@ const GoogleSignupForm: React.FC<{
             : undefined,
       };
 
-      console.log("Submitting Google signup payload:", payload);
-
-      // ✅ API now returns FULL Axios response
       const res = await completeGoogleSignup(payload, {
         withCredentials: true,
       });
 
-      console.log("Server response:", res.data);
+      /*
+        IMPORTANT:
+        Google signup should NEVER log the user in.
+        It should only submit the approval request.
+        After approval, user must login from normal login form.
+      */
+      localStorage.removeItem("token");
+      localStorage.removeItem("currentUser");
 
-      // 🛡️ SAFETY CHECK (prevents crash)
-      if (!res.data?.user || !res.data?.token) {
-        throw new Error("Invalid signup response from server");
-      }
-
-      localStorage.setItem("token", res.data.token);
-      localStorage.setItem(
-        "currentUser",
-        JSON.stringify(res.data.user)
-      );
-
-      navigate(
-        res.data.user.role === "admin"
-          ? "/admin-dashboard"
-          : "/student-dashboard",
-        { replace: true }
+      alert(
+        res.data?.message ||
+          "Signup request submitted. You can login with normal email/password after approval."
       );
 
       onSubmit?.(data);
+
+      // Use "/" if your normal login page is at "/".
+      navigate("/", { replace: true });
     } catch (err: any) {
       console.error("Registration failed:", err);
+
+      localStorage.removeItem("token");
+      localStorage.removeItem("currentUser");
+
       alert(
         "Registration failed: " +
           (err?.response?.data?.message || err.message)
@@ -141,6 +172,7 @@ const GoogleSignupForm: React.FC<{
       form.setValue("discipline", "");
       form.setValue("batch", "");
       form.setValue("rollNo", "");
+      form.setValue("supervisorEmail", "");
       form.setValue("semester", "");
       form.setValue("dateOfJoining", "");
     }
@@ -154,9 +186,11 @@ const GoogleSignupForm: React.FC<{
           <div className="mx-auto w-12 h-12 bg-primary rounded-full flex items-center justify-center mb-2">
             <UserIcon className="w-6 h-6 text-primary-foreground" />
           </div>
+
           <CardTitle className="text-2xl font-semibold text-foreground">
             Complete Your Profile
           </CardTitle>
+
           <p className="text-muted-foreground text-sm">
             Please provide additional information to complete your registration
           </p>
@@ -186,6 +220,44 @@ const GoogleSignupForm: React.FC<{
                 )}
               />
 
+              {/* Password */}
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Password *</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        type="password"
+                        placeholder="Create a password"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Confirm Password */}
+              <FormField
+                control={form.control}
+                name="confirmPassword"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Confirm Password *</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        type="password"
+                        placeholder="Confirm your password"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               {/* Role */}
               <FormField
                 control={form.control}
@@ -207,6 +279,7 @@ const GoogleSignupForm: React.FC<{
                           <SelectValue placeholder="Select your role" />
                         </SelectTrigger>
                       </FormControl>
+
                       <SelectContent>
                         <SelectItem value="student">Student</SelectItem>
                         <SelectItem value="admin">Admin</SelectItem>
@@ -223,7 +296,7 @@ const GoogleSignupForm: React.FC<{
                 name="phoneNumber"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Phone Number</FormLabel>
+                    <FormLabel>Phone Number *</FormLabel>
                     <FormControl>
                       <Input {...field} placeholder="03xx-xxxxxxx" />
                     </FormControl>
@@ -235,6 +308,28 @@ const GoogleSignupForm: React.FC<{
               {/* Student Fields */}
               {selectedRole === "student" && (
                 <div className="space-y-4">
+                  {/* Supervisor Email */}
+                  <FormField
+                    control={form.control}
+                    name="supervisorEmail"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          <UserIcon className="inline w-4 h-4 mr-1" />
+                          Supervisor/Admin Email *
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            type="email"
+                            placeholder="admin@cloud.neduet.edu.pk"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
                   {/* Discipline */}
                   <FormField
                     control={form.control}
@@ -243,7 +338,7 @@ const GoogleSignupForm: React.FC<{
                       <FormItem>
                         <FormLabel>
                           <BookOpen className="inline w-4 h-4 mr-1" />
-                          Discipline
+                          Discipline *
                         </FormLabel>
                         <Select
                           value={field.value}
@@ -254,6 +349,7 @@ const GoogleSignupForm: React.FC<{
                               <SelectValue placeholder="Select discipline" />
                             </SelectTrigger>
                           </FormControl>
+
                           <SelectContent>
                             <SelectItem value="CT">CT</SelectItem>
                             <SelectItem value="AI">AI</SelectItem>
@@ -275,11 +371,47 @@ const GoogleSignupForm: React.FC<{
                       <FormItem>
                         <FormLabel>
                           <Users className="inline w-4 h-4 mr-1" />
-                          Batch
+                          Batch *
                         </FormLabel>
                         <FormControl>
                           <Input {...field} placeholder="2023-2027" />
                         </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Semester */}
+                  <FormField
+                    control={form.control}
+                    name="semester"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          <GraduationCap className="inline w-4 h-4 mr-1" />
+                          Semester *
+                        </FormLabel>
+                        <Select
+                          value={field.value}
+                          onValueChange={field.onChange}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select semester" />
+                            </SelectTrigger>
+                          </FormControl>
+
+                          <SelectContent>
+                            <SelectItem value="1">1st Semester</SelectItem>
+                            <SelectItem value="2">2nd Semester</SelectItem>
+                            <SelectItem value="3">3rd Semester</SelectItem>
+                            <SelectItem value="4">4th Semester</SelectItem>
+                            <SelectItem value="5">5th Semester</SelectItem>
+                            <SelectItem value="6">6th Semester</SelectItem>
+                            <SelectItem value="7">7th Semester</SelectItem>
+                            <SelectItem value="8">8th Semester</SelectItem>
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -293,7 +425,7 @@ const GoogleSignupForm: React.FC<{
                       <FormItem>
                         <FormLabel>
                           <Hash className="inline w-4 h-4 mr-1" />
-                          Roll Number
+                          Roll Number *
                         </FormLabel>
                         <FormControl>
                           <Input {...field} placeholder="CT-210001" />
@@ -315,8 +447,9 @@ const GoogleSignupForm: React.FC<{
                 >
                   Cancel
                 </Button>
+
                 <Button type="submit" className="flex-1">
-                  Complete Registration
+                  Submit Signup Request
                 </Button>
               </div>
             </form>

@@ -7,6 +7,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import api from "@/api/api";
 import AdminSidebar from "@/components/admin/AdminSidebar";
@@ -25,6 +26,20 @@ type Student = {
   name?: string;
   email?: string;
   picture?: string;
+};
+
+type SignupRequest = {
+  _id: string;
+  name?: string;
+  email?: string;
+  discipline?: string;
+  batch?: string;
+  rollNo?: string;
+  phoneNumber?: string;
+  semester?: string;
+  dateOfJoining?: string;
+  supervisorEmail?: string;
+  approvalRequestedAt?: string;
 };
 
 type Task = {
@@ -105,7 +120,9 @@ const isProjectActive = (project: Project) => {
 
   if (!status) return true;
 
-  return !["completed", "complete", "done", "closed", "archived"].includes(status);
+  return !["completed", "complete", "done", "closed", "archived"].includes(
+    status
+  );
 };
 
 const AdminDashboard = () => {
@@ -115,6 +132,11 @@ const AdminDashboard = () => {
   const [loadingMe, setLoadingMe] = useState(true);
 
   const [interns, setInterns] = useState<Student[]>([]);
+  const [signupRequests, setSignupRequests] = useState<SignupRequest[]>([]);
+  const [signupActionLoading, setSignupActionLoading] = useState<string | null>(
+    null
+  );
+
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [timetables, setTimetables] = useState<Timetable[]>([]);
@@ -148,13 +170,19 @@ const AdminDashboard = () => {
     setDashboardLoading(true);
     setDashboardError("");
 
-    const [studentsResult, tasksResult, projectsResult, timetablesResult] =
-      await Promise.allSettled([
-        api.get("/users/students"),
-        api.get("/tasks"),
-        api.get("/projects"),
-        api.get("/admin/timetable/all"),
-      ]);
+    const [
+      studentsResult,
+      signupRequestsResult,
+      tasksResult,
+      projectsResult,
+      timetablesResult,
+    ] = await Promise.allSettled([
+      api.get("/users/students"),
+      api.get("/users/signup-requests"),
+      api.get("/tasks"),
+      api.get("/projects"),
+      api.get("/admin/timetable/all"),
+    ]);
 
     if (studentsResult.status === "fulfilled") {
       setInterns(
@@ -162,6 +190,17 @@ const AdminDashboard = () => {
           "students",
           "users",
           "interns",
+          "data",
+        ])
+      );
+    }
+
+    if (signupRequestsResult.status === "fulfilled") {
+      setSignupRequests(
+        extractArray<SignupRequest>(signupRequestsResult.value.data, [
+          "requests",
+          "signupRequests",
+          "users",
           "data",
         ])
       );
@@ -202,6 +241,7 @@ const AdminDashboard = () => {
 
     const allFailed =
       studentsResult.status === "rejected" &&
+      signupRequestsResult.status === "rejected" &&
       tasksResult.status === "rejected" &&
       projectsResult.status === "rejected" &&
       timetablesResult.status === "rejected";
@@ -224,6 +264,38 @@ const AdminDashboard = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("currentUser");
     navigate("/");
+  };
+
+  const handleApproveSignup = async (id: string) => {
+    setSignupActionLoading(id);
+    setDashboardError("");
+
+    try {
+      await api.patch(`/users/signup-requests/${id}/approve`);
+      await loadDashboardData();
+    } catch (error: any) {
+      setDashboardError(
+        error?.response?.data?.message || "Could not approve signup request."
+      );
+    } finally {
+      setSignupActionLoading(null);
+    }
+  };
+
+  const handleRejectSignup = async (id: string) => {
+    setSignupActionLoading(id);
+    setDashboardError("");
+
+    try {
+      await api.delete(`/users/signup-requests/${id}/reject`);
+      await loadDashboardData();
+    } catch (error: any) {
+      setDashboardError(
+        error?.response?.data?.message || "Could not reject signup request."
+      );
+    } finally {
+      setSignupActionLoading(null);
+    }
   };
 
   const totalInterns = interns.length;
@@ -372,6 +444,93 @@ const AdminDashboard = () => {
               ))}
             </div>
           </div>
+
+          <Card className="border border-gray-200 mb-8">
+            <CardHeader>
+              <CardTitle className="text-base font-semibold text-gray-900">
+                Pending Student Signup Requests
+              </CardTitle>
+            </CardHeader>
+
+            <CardContent>
+              {dashboardLoading ? (
+                <p className="text-sm text-gray-500">Loading requests...</p>
+              ) : signupRequests.length === 0 ? (
+                <p className="text-sm text-gray-500">
+                  No pending student signup requests.
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {signupRequests.map((request) => (
+                    <div
+                      key={request._id}
+                      className="rounded-lg border border-gray-200 bg-white p-4"
+                    >
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900">
+                            {request.name || "Unnamed Student"}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {request.email || "No email"}
+                          </p>
+
+                          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1 text-xs text-gray-600">
+                            <p>
+                              <span className="font-medium">
+                                Supervisor/Admin Email:
+                              </span>{" "}
+                              {request.supervisorEmail || "N/A"}
+                            </p>
+                            <p>
+                              <span className="font-medium">Discipline:</span>{" "}
+                              {request.discipline || "N/A"}
+                            </p>
+                            <p>
+                              <span className="font-medium">Batch:</span>{" "}
+                              {request.batch || "N/A"}
+                            </p>
+                            <p>
+                              <span className="font-medium">Roll No:</span>{" "}
+                              {request.rollNo || "N/A"}
+                            </p>
+                            <p>
+                              <span className="font-medium">Semester:</span>{" "}
+                              {request.semester || "N/A"}
+                            </p>
+                            <p>
+                              <span className="font-medium">Phone:</span>{" "}
+                              {request.phoneNumber || "N/A"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => handleApproveSignup(request._id)}
+                            disabled={signupActionLoading === request._id}
+                            className="bg-green-600 hover:bg-green-700"
+                          >
+                            Approve
+                          </Button>
+
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleRejectSignup(request._id)}
+                            disabled={signupActionLoading === request._id}
+                          >
+                            Reject
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           <Card className="border border-gray-200">
             <CardHeader>

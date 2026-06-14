@@ -1,4 +1,3 @@
-// client/src/api/api.ts
 import axios, {
   AxiosInstance,
   AxiosError,
@@ -6,7 +5,9 @@ import axios, {
   AxiosHeaders,
   AxiosRequestConfig,
 } from "axios";
-export const BASE_URL = "http://localhost:5000/api";
+
+export const BASE_URL =
+  import.meta.env.VITE_API_URL ?? "http://localhost:5000/api";
 
 /* ------------------------------------------------------------
    ✅ Create base Axios instance
@@ -27,9 +28,13 @@ export const requestTaskApproval = async (taskId: string, isMissed = false) => {
 // request admin permission to start missed task
 export const requestTaskStart = (taskId: string) => {
   const token = localStorage.getItem("token");
-  return axios.put(`${BASE_URL}/tasks/${taskId}/request-start`, {}, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
+  return axios.put(
+    `${BASE_URL}/tasks/${taskId}/request-start`,
+    {},
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
 };
 
 /* ------------------------------------------------------------
@@ -98,7 +103,6 @@ export const updateTaskStatus = async (
   return api.patch(`/tasks/${taskId}`, payload);
 };
 
-
 export const assignTask = (taskId: string, interns: string[]) =>
   api.patch(`/tasks/${taskId.trim()}/assign`, { assignedTo: interns });
 
@@ -123,27 +127,33 @@ export const deleteProject = (id: string) =>
 
 export const getProjectById = (id: string) =>
   api.get(`/projects/${id.trim()}`);
+
 export const updateTask = (taskId: string, taskData: any) =>
   api.patch(`/tasks/${taskId.trim()}`, taskData);
+
 export const requestAdminStartApproval = (taskId: string) =>
   api.put(`/tasks/${taskId.trim()}/admin-approve-start`);
+
 export const requestTaskApprovalForStudent = (taskId: string, isMissed = false) =>
   api.put(`/tasks/${taskId.trim()}/request-approval`, { isMissed });
+
 export const assignMoreStudentsToTask = (taskId: string, assignedTo: string[]) =>
   api.patch(`/tasks/${taskId.trim()}/assign`, { assignedTo });
+
 export const getTaskById = (taskId: string) =>
   api.get(`/tasks/${taskId.trim()}`);
 
-
 /* ------------------------------------------------------------
-   ✅ GOOGLE SIGNUP (🚨 FIXED)
+   ✅ GOOGLE SIGNUP
 ------------------------------------------------------------ */
 interface GoogleSignupPayload {
   fullName: string;
   role: "student" | "admin";
+  password?: string;
   discipline?: string;
   batch?: string;
   rollNo?: string;
+  supervisorEmail?: string;
   phoneNumber: string;
   semester?: string;
   dateOfJoining?: string;
