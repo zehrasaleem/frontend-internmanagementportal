@@ -16,8 +16,8 @@ import { fetchTasks, updateTaskStatus, updateTaskProgress } from "@/api/api";
 import { requestTaskStart } from "@/api/api";
 import { requestTaskApproval } from "@/api/api";
 import { Toaster, toast } from "react-hot-toast";
+import { getErrorMessage } from "@/utils/errorMessage";
 
-// Add inside your App component (or top-level)
 function App() {
   return (
     <>
@@ -27,7 +27,6 @@ function App() {
   );
 }
 
-// -------------------- User Type --------------------
 type CurrentUser = {
   _id: string;
   name?: string;
@@ -36,7 +35,6 @@ type CurrentUser = {
   picture?: string;
 };
 
-// -------------------- StudentTasks Component --------------------
 type UserRef = {
   _id: string;
   name: string;
@@ -56,26 +54,26 @@ type Task = {
   subHeading?: string;
   description: string;
   status:
-    | "Assigned"
-    | "In Progress"
-    | "Completed"
-    | "Pending Approval"
-    | "Pending Admin Approval"
-    | "Missed"
-    | "Pending Start Approval"
-    | "Pending TL Approval";
+  | "Assigned"
+  | "In Progress"
+  | "Completed"
+  | "Pending Approval"
+  | "Pending Admin Approval"
+  | "Missed"
+  | "Pending Start Approval"
+  | "Pending TL Approval"
+  | "Rejected";
   dueDate: string;
   assignedTo: AssignedUser[];
   createdByRole?: "admin" | "teamLead";
   assignedBy?: UserRef;
   adminApproved?: boolean;
-
-  // execution
+  project?: { _id: string; title: string } | string;
+  rejectionReason?: string;
+  rejectedAt?: string | null;
   startDate?: string | null;
   completedDate?: string | null;
   progress?: number;
-
-  // ✅ add these (Mongoose usually provides them)
   createdAt?: string;
   updatedAt?: string;
 };
@@ -89,6 +87,7 @@ type StudentUiStatus =
   | "Missed"
   | "Pending Start Approval"
   | "Pending TL Approval"
+  | "Rejected"
   | "WaitingApproval";
 
 const StudentTasks = () => {
@@ -107,11 +106,8 @@ const StudentTasks = () => {
   const STATUS_PENDING_ADMIN: Task["status"] = "Pending Admin Approval";
   const STATUS_PENDING_APPROVAL: Task["status"] = "Pending Approval";
   const [tick, setTick] = useState(0);
-
-  // Current timestamp
   const now = new Date();
 
-  // Dynamically treat Pending Start Approval as Assigned if dueDate is in the future
   const processedTasks: TaskWithVirtual[] = useMemo(() => {
     const now = new Date();
 
@@ -120,39 +116,37 @@ const StudentTasks = () => {
       const wasStarted = !!task.startDate;
 
       let virtualStatus: TaskWithVirtual["virtualStatus"] = task.status;
-
-      // 🔴 Compute Missed first: purely due + completion based
       if (
         now > due &&
         task.status !== "Completed" &&
+        task.status !== "Rejected" &&
+        task.status !== "Pending TL Approval" &&
+        task.status !== "Pending Admin Approval" &&
+        task.status !== "Pending Approval" &&
         (task.progress ?? 0) < 100
       ) {
         virtualStatus = "Missed";
       }
-      // ✅ Completed tasks
       else if (task.status === "Completed") {
         virtualStatus = "Completed";
       }
-      // 🔵 Pending TL Approval overrides only after Missed check
+      else if (task.status === "Rejected") {
+        virtualStatus = "Rejected";
+      }
       else if (task.status === "Pending TL Approval") {
         virtualStatus = "Pending TL Approval";
       }
-      // 🟡 Pending Start Approval
       else if (task.status === "Pending Start Approval") {
         virtualStatus = "Pending Start Approval";
       }
-      // 🟢 Tasks already started or in-progress
       else if (wasStarted || (task.progress ?? 0) > 0) {
         virtualStatus = "In Progress";
       }
-      // 🔵 Admin approved but not started
       else if (task.adminApproved) {
         virtualStatus = "Assigned";
       } else if (task.status === "Assigned" && (task.progress ?? 0) === 0) {
         virtualStatus = "Assigned";
       }
-
-      // ⚪ Fallback: use original status
       else {
         virtualStatus = task.status;
       }
@@ -161,12 +155,10 @@ const StudentTasks = () => {
     });
   }, [tasks, tick]);
 
-  // Missed tasks: dueDate passed, not completed, not Pending Start Approval in future
   const missedTasks = processedTasks.filter(
     (task) => task.virtualStatus === "Missed"
   );
 
-  // Upcoming tasks: due in next 7 days, not completed, not missed
   const upcomingTasks = processedTasks.filter((task) => {
     const due = new Date(task.dueDate); // use exact due time from DB
     return (
@@ -176,26 +168,19 @@ const StudentTasks = () => {
     );
   });
 
-  // Main tasks list to render (Assigned / In Progress / etc.)
-  const assignedTasks = processedTasks; // Use this for main dashboard rendering
-
-  // Is this task blocked because TL portion is pending admin approval?
+  const assignedTasks = processedTasks; 
   const isBlockedByTeamLeadApproval = (
     task: Task,
     me: CurrentUser | null
   ): boolean => {
     if (!me) return false;
 
-    // Find the role of the current user in this task
     const meRoleInTask = task.assignedTo.find((u) => u._id === me._id)?.role;
     if (!meRoleInTask) return false;
-
-    // Check if any TL is assigned to this task
     const teamLeadAssigned = task.assignedTo.some(
       (u) => u.role === "teamLead"
     );
 
-    // Block if a TL is assigned, status is Pending Admin Approval, and current user is NOT the TL
     return (
       teamLeadAssigned &&
       task.status === STATUS_PENDING_ADMIN &&
@@ -203,7 +188,6 @@ const StudentTasks = () => {
     );
   };
 
-  // Can the current user request approval for a task?
   const canRequestApproval = (
     task: Task,
     me: CurrentUser | null
@@ -217,31 +201,24 @@ const StudentTasks = () => {
       (u) => u.role === "teamLead"
     );
     const studentAssigned = task.assignedTo.some((u) => u.role === "student");
-
-    // Student logic
     if (meRoleInTask === "student") {
-      // Student cannot request if TL portion is pending admin approval
       if (teamLeadAssigned && task.status === STATUS_PENDING_ADMIN)
         return false;
 
-      return true; // Multiple students or single student without TL → can request directly
+      return true;
     }
 
-    // Team Lead logic
     if (meRoleInTask === "teamLead") {
-      // TL completing their own task alone → must go to admin first
       if (task.assignedTo.length === 1) {
         return task.status !== STATUS_PENDING_ADMIN;
       }
 
-      // TL + students
       if (studentAssigned) {
-        // Cannot request TL approval until admin approves TL portion
         if (task.status === STATUS_PENDING_ADMIN) return false;
-        return true; // Otherwise can request
+        return true; 
       }
 
-      return true; // fallback
+      return true; 
     }
 
     return false;
@@ -250,8 +227,6 @@ const StudentTasks = () => {
   const handleStartTask = async (taskId: string) => {
     const task = processedTasks.find((t) => t._id === taskId);
     if (!task) return;
-
-    // 🔒 Block only truly missed tasks
     if (task.virtualStatus === "Missed") {
       toast.error("Cannot start a missed task. Request admin approval to restart.");
       return;
@@ -268,19 +243,18 @@ const StudentTasks = () => {
         prev.map((t) =>
           t._id === task._id
             ? {
-                ...t,
-                progress: cappedProgress,
-                status: "In Progress",
-                // startDate: t.startDate || new Date().toISOString(),
-              }
+              ...t,
+              progress: cappedProgress,
+              status: "In Progress",
+            }
             : t
         )
       );
 
       toast.success("Task started!");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to start task:", err);
-      toast.error(err?.response?.data?.message || "Failed to start task.");
+      toast.error(getErrorMessage(err, "Failed to start task."));
     } finally {
       setUpdating(null);
     }
@@ -289,24 +263,19 @@ const StudentTasks = () => {
   const handleRequestApproval = async (taskId: string, isMissed: boolean) => {
     try {
       await requestTaskApproval(taskId, isMissed);
-
-      // 🔄 REFRESH TASK LIST
       await refreshTasks();
 
       toast.success("Approval requested successfully");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to request approval:", err);
-      toast.error(err?.response?.data?.message || "Something went wrong");
+      toast.error(getErrorMessage(err, "Failed to request approval."));
     }
   };
 
-  // add new function or modify
   const handleRequestStartPermission = async (taskId: string) => {
     const task = processedTasks.find((t) => t._id === taskId);
 
     if (!task) return;
-
-    // Only allow if truly missed and not already requested
     if (
       task.virtualStatus !== "Missed" ||
       task.status === "Pending Start Approval"
@@ -320,15 +289,14 @@ const StudentTasks = () => {
       await requestTaskStart(taskId);
       await refreshTasks();
       toast.success("Start permission requested successfully");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to request start permission:", err);
-      toast.error(err?.response?.data?.message || "Something went wrong");
+      toast.error(getErrorMessage(err, "Failed to request start permission."));
     } finally {
       setUpdating(null);
     }
   };
 
-  // Fetch current user
   useEffect(() => {
     let mounted = true;
 
@@ -340,8 +308,6 @@ const StudentTasks = () => {
         const res = await fetch("http://localhost:5000/api/auth/me", {
           headers: { Authorization: `Bearer ${token}` },
         });
-
-        // ✅ Check if token expired or invalid
         if (!res.ok) {
           localStorage.removeItem("token");
           return navigate("/login");
@@ -373,15 +339,13 @@ const StudentTasks = () => {
       try {
         const { data } = await fetchTasks(me.email);
         setTasks(data.tasks || []);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Error fetching tasks:", err);
-
-        // ✅ Handle 401 (token expired)
-        if (err.response?.status === 401) {
+        if (getErrorMessage(err, "").includes("Unauthorized")) {
           localStorage.removeItem("token");
           navigate("/login");
         } else {
-          toast.error("Failed to fetch tasks. Please try again.");
+          toast.error(getErrorMessage(err, "Failed to fetch tasks. Please try again."));
         }
       }
     })();
@@ -389,7 +353,7 @@ const StudentTasks = () => {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setTick((prev) => prev + 1); // trigger re-render
+      setTick((prev) => prev + 1); 
     }, 30 * 1000);
 
     return () => clearInterval(interval);
@@ -401,9 +365,9 @@ const StudentTasks = () => {
     try {
       const { data } = await fetchTasks(me.email);
       setTasks(data.tasks || []);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to refresh tasks:", err);
-      toast.error("Failed to refresh tasks");
+      toast.error(getErrorMessage(err, "Failed to refresh tasks"));
     }
   };
 
@@ -413,19 +377,21 @@ const StudentTasks = () => {
   };
 
   const getStatusBadge = (status: string) => {
-    let base = "rounded-full px-3 py-1 transition-all duration-150";
+    const base = "rounded-full px-3 py-1 transition-all duration-150";
 
     switch (status) {
       case "Completed":
         return `${base} bg-green-100 text-green-800 hover:bg-green-200`;
       case "In Progress":
         return `${base} bg-yellow-100 text-yellow-800 hover:bg-yellow-200`;
-      case "Pending Admin Approval": // <-- added
+      case "Pending Admin Approval": 
         return `${base} bg-purple-100 text-purple-800 hover:bg-purple-200`;
       case "Missed":
         return `${base} bg-red-100 text-red-800 hover:bg-red-200`;
       case "Pending TL Approval":
         return `${base} bg-orange-100 text-orange-800 hover:bg-orange-200`;
+      case "Rejected":
+        return `${base} bg-red-200 text-red-900 hover:bg-red-300`;
       default:
         return `${base} bg-blue-100 text-blue-800 hover:bg-blue-200`;
     }
@@ -487,8 +453,6 @@ const StudentTasks = () => {
 
   const applyUpdateStatus = async () => {
     if (!selectedTask) return;
-
-    // Block update if task is Missed
     if (selectedTask.virtualStatus === "Missed") {
       toast.error("This task is missed. Request admin approval to start again.");
       return;
@@ -526,10 +490,7 @@ const StudentTasks = () => {
     try {
       setUpdating(taskId);
 
-      // 🔑 Backend sets startDate / completedDate
       await updateTaskStatus(taskId, newStatus);
-
-      // 🔄 Always refetch fresh backend truth
       await refreshTasks();
     } catch (err) {
       console.error(err);
@@ -546,6 +507,7 @@ const StudentTasks = () => {
 
   const getStudentUiStatus = (task: TaskWithVirtual): StudentUiStatus => {
     if (task.status === "Completed") return "Completed";
+    if (task.status === "Rejected") return "Rejected";
     if (task.virtualStatus === "Missed") return "Missed";
 
     if (task.status === "Pending TL Approval") {
@@ -608,7 +570,7 @@ const StudentTasks = () => {
                         </p>
                       )}
 
-                      <p className="text-red-600 text-sm font-medium">
+                      <p className="text-red-700 text-sm font-medium">
                         {formatDate(task.dueDate)}
                       </p>
                     </CardContent>
@@ -679,7 +641,9 @@ const StudentTasks = () => {
                   case "Pending Start Approval":
                     return "border-l-4 border-indigo-500";
                   case "WaitingApproval":
-                    return "border-l-4 border-purple-300"; // for UI only
+                    return "border-l-4 border-purple-300";
+                  case "Rejected":
+                    return "border-l-4 border-red-700";
                   default:
                     return "";
                 }
@@ -702,9 +666,11 @@ const StudentTasks = () => {
                   case "Pending Start Approval":
                     return "bg-indigo-50";
                   case "WaitingApproval":
-                    return "bg-purple-100"; // for UI only
+                    return "bg-purple-100"; 
                   case "Pending TL Approval":
                     return "bg-orange-50";
+                  case "Rejected":
+                    return "bg-red-100";
                   default:
                     return "bg-white";
                 }
@@ -742,15 +708,51 @@ const StudentTasks = () => {
                       </Badge>
                     </div>
 
+                    {task.project && (
+                      <p className="text-xs font-medium text-indigo-600 mb-1">
+                        Project:{" "}
+                        {typeof task.project === "string"
+                          ? task.project
+                          : task.project.title}
+                      </p>
+                    )}
+
                     <p className="text-gray-700 text-sm mb-3">
                       {task.description}
                     </p>
+
+                    {uiStatus === "Rejected" && (
+                      <div className="mb-3 rounded-md bg-red-100 border border-red-300 px-3 py-2">
+                        <p className="text-sm font-semibold text-red-700">
+                          ❌ This task was rejected
+                        </p>
+                        {task.rejectionReason && (
+                          <p className="text-xs text-red-600 mt-1">
+                            Reason: {task.rejectionReason}
+                          </p>
+                        )}
+                        <p className="text-xs text-red-500 mt-1">
+                          Update your progress to resubmit for approval.
+                        </p>
+                      </div>
+                    )}
 
                     {task.assignedBy && (
                       <p className="text-gray-500 text-sm mt-1">
                         <span className="font-medium">Assigned By:</span>{" "}
                         {task.assignedBy.name}
                       </p>
+                    )}
+
+                    {task.status === "Missed" && task.rejectionReason && (
+                      <div className="mt-2 rounded-md bg-red-100 border border-red-300 px-3 py-2">
+                        <p className="text-xs font-semibold text-red-700">
+                          ⚠️ Your previous request to start/restart this task was denied
+                        </p>
+                        <p className="text-xs text-red-600 mt-1">
+                          Reason: {task.rejectionReason}
+                        </p>
+                      </div>
                     )}
 
                     <div className="flex justify-between items-center mt-4">
@@ -760,14 +762,11 @@ const StudentTasks = () => {
                       </p>
 
                       <div className="flex gap-2">
-                        {/* 1️⃣ Missed or Pending Start Approval → Request Start/Restart Permission */}
                         {canRequestStartOrRestart(task) && (
                           <Button
                             size="sm"
                             className="bg-amber-500 hover:bg-amber-600 text-white"
-                            onClick={() =>
-                              handleRequestStartPermission(task._id)
-                            }
+                            onClick={() => handleRequestStartPermission(task._id)}
                             disabled={
                               updating === task._id ||
                               task.virtualStatus !== "Missed" ||
@@ -775,6 +774,23 @@ const StudentTasks = () => {
                             }
                           >
                             Request Permission to Start
+                          </Button>
+                        )}
+
+                        {task.status === "Pending Start Approval" && (
+                          <Button disabled className="cursor-not-allowed opacity-70 bg-indigo-100 text-indigo-700">
+                            Waiting for Response
+                          </Button>
+                        )}
+
+                        {uiStatus === "Rejected" && (
+                          <Button
+                            size="sm"
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                            onClick={() => openUpdateModal(task)}
+                            disabled={updating === task._id}
+                          >
+                            Update Progress & Resubmit
                           </Button>
                         )}
 
@@ -791,7 +807,6 @@ const StudentTasks = () => {
                             </Button>
                           )}
 
-                        {/* 3️⃣ In Progress → Update & Request Approval */}
                         {uiStatus === "In Progress" && (
                           <>
                             <Button
@@ -831,7 +846,6 @@ const StudentTasks = () => {
                           </Button>
                         )}
 
-                        {/* 5️⃣ Completed → View Details */}
                         {task.virtualStatus === "Completed" && (
                           <Button
                             size="sm"
@@ -855,7 +869,6 @@ const StudentTasks = () => {
         </main>
       </div>
 
-      {/* -------------------- Update Progress Modal -------------------- */}
       <Dialog
         open={showUpdateModal}
         onOpenChange={(open) => setShowUpdateModal(open)}
@@ -874,7 +887,7 @@ const StudentTasks = () => {
           <Slider
             value={[progress]}
             onValueChange={(v: number[]) => setProgress(v[0])}
-            min={selectedTask?.progress ?? 0} // ⬅ minimum is current progress
+            min={selectedTask?.progress ?? 0} 
             max={100}
             step={1}
             disabled={
@@ -898,7 +911,7 @@ const StudentTasks = () => {
           <Button
             className="bg-blue-600 hover:bg-blue-500 text-white w-full"
             onClick={applyUpdateStatus}
-            disabled={!selectedTask} // prevent click if no task selected
+            disabled={!selectedTask} 
           >
             Save Progress
           </Button>
@@ -913,49 +926,65 @@ const StudentTasks = () => {
           </DialogHeader>
 
           {viewTask && (
-            <div className="space-y-2">
-              <p>
-                <strong>Title:</strong> {viewTask.title}
-              </p>
+            <div className="space-y-3">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900">{viewTask.title}</h3>
+                <p className="text-sm text-gray-500 mt-1">{viewTask.description}</p>
+              </div>
 
-              <p>
-                <strong>Description:</strong> {viewTask.description}
-              </p>
+              <div className="flex flex-col items-center gap-1.5 bg-gray-50 rounded-xl p-4">
+                <div className="relative w-20 h-20">
+                  <svg viewBox="0 0 76 76" className="w-20 h-20 -rotate-90">
+                    <circle cx="38" cy="38" r="32" fill="none" stroke="#e5e7eb" strokeWidth="7" />
+                    <circle
+                      cx="38" cy="38" r="32" fill="none"
+                      stroke={viewTask.status === "Completed" ? "#16a34a" : "#f59e0b"}
+                      strokeWidth="7"
+                      strokeLinecap="round"
+                      strokeDasharray={2 * Math.PI * 32}
+                      strokeDashoffset={2 * Math.PI * 32 * (1 - (viewTask.progress ?? 0) / 100)}
+                    />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center text-base font-semibold text-gray-900">
+                    {viewTask.progress ?? 0}%
+                  </span>
+                </div>
+                <Badge className={getStatusBadge(viewTask.status)}>
+                  {viewTask.status === "Completed" ? "✅ " : ""}{viewTask.status}
+                </Badge>
+                <p className="text-xs text-gray-500">⏱️ Time taken: {timeTaken(viewTask)}</p>
+              </div>
 
-              <p>
-                <strong>Assigned To:</strong>{" "}
-                {viewTask.assignedTo.map((a) => a.name).join(", ")}
-              </p>
-
-              {viewTask.assignedBy && (
-                <p>
-                  <strong>Assigned By:</strong> {viewTask.assignedBy.name}
-                </p>
-              )}
-
-              <p>
-                <strong>Start Date:</strong> {formatDate(viewTask.startDate)}
-              </p>
-
-              <p>
-                <strong>End Date:</strong> {formatDate(viewTask.completedDate)}
-              </p>
-
-              <p>
-                <strong>Due Date:</strong> {formatDate(viewTask.dueDate)}
-              </p>
-
-              <p>
-                <strong>Progress:</strong> {viewTask.progress ?? 0}%
-              </p>
-
-              <p>
-                <strong>Status:</strong> {viewTask.status}
-              </p>
-
-              <p>
-                <strong>Time Taken:</strong> {timeTaken(viewTask)}
-              </p>
+              <table className="w-full text-sm border-collapse">
+                <tbody>
+                  <tr className="border-t border-gray-200">
+                    <td className="py-2 text-gray-500">👤 Assigned to</td>
+                    <td className="py-2 text-right text-gray-900 font-medium">
+                      {viewTask.assignedTo.map((a) => a.name).join(", ")}
+                    </td>
+                  </tr>
+                  {viewTask.assignedBy && (
+                    <tr className="border-t border-gray-200">
+                      <td className="py-2 text-gray-500">👤 Assigned by</td>
+                      <td className="py-2 text-right text-gray-900 font-medium">
+                        {viewTask.assignedBy.name}
+                      </td>
+                    </tr>
+                  )}
+                  <tr className="border-t border-gray-200">
+                    <td className="py-2 text-gray-500">📅 Started</td>
+                    <td className="py-2 text-right text-gray-900">{formatDate(viewTask.startDate)}</td>
+                  </tr>
+                  <tr className="border-t border-gray-200">
+                    <td className="py-2 text-gray-500">🏁 Completed</td>
+                    <td className="py-2 text-right text-gray-900">{formatDate(viewTask.completedDate)}</td>
+                  </tr>
+                  <tr className="border-t border-gray-200">
+                    <td className="py-2 text-gray-500">📅 Due date</td>
+                    <td className="py-2 text-right text-gray-900">{formatDate(viewTask.dueDate)}</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           )}
         </DialogContent>

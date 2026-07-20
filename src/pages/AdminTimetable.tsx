@@ -556,256 +556,346 @@ export default function AdminTimetable() {
     navigate("/");
   };
 
-  return (
-    <div className="min-h-screen bg-background">
-      <AdminSidebar activeItem="Timetable & Scheduling" />
+ return (
+  <div className="min-h-screen bg-background">
+    <AdminSidebar activeItem="Timetable & Scheduling" />
 
-      <div className="ml-64">
-        <AdminNavbar me={admin} onLogout={logout} />
+    <div className="ml-64">
+      <AdminNavbar me={admin} onLogout={logout} />
 
-        <div className="p-6 bg-gray-50 space-y-6">
-          <h2 className="text-2xl font-bold">Timetable & Scheduling</h2>
+      <div className="min-h-[calc(100vh-73px)] p-6 bg-gray-50">
 
-          <div className="flex items-center justify-between">
-            <Button variant="outline" onClick={prevMonth} disabled={!canGoPrev}>
-              ← Previous
-            </Button>
+        {/* Sticky Header + Quick Actions */}
+        <div className="sticky top-[73px] z-20 bg-gray-50 pb-4">
 
-            <div className="text-center">
-              <h3 className="text-lg font-semibold">{monthLabel}</h3>
-              <p className="text-xl font-bold text-black">{semesterLabel}</p>
+          <div className="space-y-4">
+
+            <h2 className="text-2xl font-bold">
+              Timetable & Scheduling
+            </h2>
+
+            <div className="flex items-center justify-between">
+              <Button
+                variant="outline"
+                onClick={prevMonth}
+                disabled={!canGoPrev}
+              >
+                ← Previous
+              </Button>
+
+              <div className="text-center">
+                <h3 className="text-lg font-semibold">
+                  {monthLabel}
+                </h3>
+
+                <p className="text-xl font-bold text-black">
+                  {semesterLabel}
+                </p>
+              </div>
+
+              <Button
+                variant="outline"
+                onClick={nextMonth}
+              >
+                Next →
+              </Button>
             </div>
 
-            <Button variant="outline" onClick={nextMonth}>
-              Next →
-            </Button>
-          </div>
-
-          <div className="flex gap-2 flex-wrap">
-            {Array.from({ length: weeksInMonth }, (_, i) => i + 1).map((w) => (
-              <button
-                key={w}
-                onClick={() => setActiveWeek(w)}
-                className={`px-3 py-1 rounded text-sm ${
-                  activeWeek === w ? "bg-blue-600 text-white" : "bg-gray-200"
-                }`}
-              >
-                Week {w}
-              </button>
-            ))}
-          </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
-            </CardHeader>
-
-            <CardContent>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <Button
-                  variant="outline"
-                  onClick={loadTimetables}
-                  disabled={loading}
+            <div className="flex gap-2 flex-wrap">
+              {Array.from(
+                { length: weeksInMonth },
+                (_, i) => i + 1
+              ).map((w) => (
+                <button
+                  key={w}
+                  onClick={() => setActiveWeek(w)}
+                  className={`px-3 py-1 rounded text-sm ${
+                    activeWeek === w
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-200"
+                  }`}
                 >
-                  <RefreshCcw className="w-4 h-4 mr-2" />
-                  {loading ? "Refreshing..." : "Refresh"}
-                </Button>
+                  Week {w}
+                </button>
+              ))}
+            </div>
 
-                <Dialog open={open} onOpenChange={setOpen}>
-                  <DialogTrigger asChild>
-                    <Button>Schedule Meeting</Button>
-                  </DialogTrigger>
+            <Card>
+              <CardHeader>
+                <CardTitle>
+                  Quick Actions
+                </CardTitle>
+              </CardHeader>
 
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Schedule Meeting</DialogTitle>
-                    </DialogHeader>
+              <CardContent>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={loadTimetables}
+                    disabled={loading}
+                  >
+                    <RefreshCcw className="w-4 h-4 mr-2" />
+                    {loading
+                      ? "Refreshing..."
+                      : "Refresh"}
+                  </Button>
 
-                    <div className="space-y-4">
-                      <div>
-                        <label className="text-sm font-medium">Select Intern</label>
-
-                        <Select
-                          value={selectedIntern}
-                          onValueChange={(value) => {
-                            setSelectedIntern(value);
-                            setSelectedSlotId("");
-                          }}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Choose intern" />
-                          </SelectTrigger>
-
-                          <SelectContent>
-                            {timetables.map((timetable) => (
-                              <SelectItem key={timetable._id} value={timetable._id}>
-                                {timetable.student?.name || timetable.student?.email}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div>
-                        <label className="text-sm font-medium">Select Free Slot</label>
-
-                        <Select
-                          value={selectedSlotId}
-                          onValueChange={setSelectedSlotId}
-                          disabled={!selectedIntern}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Choose free slot" />
-                          </SelectTrigger>
-
-                          <SelectContent>
-                            {freeSlotsForDropdown.length === 0 ? (
-                              <SelectItem value="no-slots" disabled>
-                                No free slots available
-                              </SelectItem>
-                            ) : (
-                              freeSlotsForDropdown.map((slot) => (
-                                <SelectItem
-                                  key={`${slot._id}-${slot.date}`}
-                                  value={slot._id}
-                                >
-                                  {slot.day} — {slot.date} — {slot.time}
-                                </SelectItem>
-                              ))
-                            )}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div>
-                        <label className="text-sm font-medium">Meeting Title</label>
-                        <Input
-                          value={meetingTitle}
-                          onChange={(e) => setMeetingTitle(e.target.value)}
-                          placeholder="Enter meeting title"
-                        />
-                      </div>
-
-                      <Button className="w-full" onClick={scheduleMeeting}>
+                  <Dialog
+                    open={open}
+                    onOpenChange={setOpen}
+                  >
+                    <DialogTrigger asChild>
+                      <Button>
                         Schedule Meeting
                       </Button>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-              </div>
-            </CardContent>
-          </Card>
+                    </DialogTrigger>
+
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>
+                          Schedule Meeting
+                        </DialogTitle>
+                      </DialogHeader>
+
+                      <div className="space-y-4">
+
+                        <div>
+                          <label className="text-sm font-medium">
+                            Select Intern
+                          </label>
+
+                          <Select
+                            value={selectedIntern}
+                            onValueChange={(value) => {
+                              setSelectedIntern(value);
+                              setSelectedSlotId("");
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Choose intern" />
+                            </SelectTrigger>
+
+                            <SelectContent>
+                              {timetables.map((timetable) => (
+                                <SelectItem
+                                  key={timetable._id}
+                                  value={timetable._id}
+                                >
+                                  {timetable.student?.name ||
+                                    timetable.student?.email}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div>
+                          <label className="text-sm font-medium">
+                            Select Free Slot
+                          </label>
+
+                          <Select
+                            value={selectedSlotId}
+                            onValueChange={setSelectedSlotId}
+                            disabled={!selectedIntern}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Choose free slot" />
+                            </SelectTrigger>
+
+                            <SelectContent>
+                              {freeSlotsForDropdown.length === 0 ? (
+                                <SelectItem
+                                  value="no-slots"
+                                  disabled
+                                >
+                                  No free slots available
+                                </SelectItem>
+                              ) : (
+                                freeSlotsForDropdown.map((slot) => (
+                                  <SelectItem
+                                    key={`${slot._id}-${slot.date}`}
+                                    value={slot._id}
+                                  >
+                                    {slot.day} — {slot.date} — {slot.time}
+                                  </SelectItem>
+                                ))
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div>
+                          <label className="text-sm font-medium">
+                            Meeting Title
+                          </label>
+
+                          <Input
+                            value={meetingTitle}
+                            onChange={(e) =>
+                              setMeetingTitle(
+                                e.target.value
+                              )
+                            }
+                            placeholder="Enter meeting title"
+                          />
+                        </div>
+
+                        <Button
+                          className="w-full"
+                          onClick={scheduleMeeting}
+                        >
+                          Schedule Meeting
+                        </Button>
+
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </CardContent>
+            </Card>
+
+          </div>
+        </div>
+
+        <div className="mt-6">
+
 
           <Card>
-            <CardHeader>
-              <CardTitle>Weekly Schedule</CardTitle>
-            </CardHeader>
+  <CardHeader>
+    <CardTitle>Weekly Schedule</CardTitle>
+  </CardHeader>
 
-            <CardContent>
-              <table className="w-full border text-sm">
-                <thead>
-                  <tr>
-                    <th className="border p-2">Time</th>
+  <CardContent>
+    <table className="w-full border text-sm">
+      <thead>
+        <tr>
+          <th className="border p-2">Time</th>
 
-                    {days.map((day) => {
-                      const cellDate = dateForCell(year, month, activeWeek, day);
-                      const showDate =
-                        cellDate.getFullYear() === year &&
-                        cellDate.getMonth() === month;
+          {days.map((day) => {
+            const cellDate = dateForCell(year, month, activeWeek, day);
+            const showDate =
+              cellDate.getFullYear() === year &&
+              cellDate.getMonth() === month;
 
-                      return (
-                        <th key={day} className="border p-2">
-                          <div>{day}</div>
-                          {showDate && (
-                            <div className="text-xs font-normal text-muted-foreground mt-1">
-                              {formatHeaderDate(cellDate)}
-                            </div>
-                          )}
-                        </th>
-                      );
-                    })}
-                  </tr>
-                </thead>
+            return (
+              <th key={day} className="border p-2">
+                <div>{day}</div>
 
-                <tbody>
-                  {times.map((time) => (
-                    <tr key={time}>
-                      <td className="border p-2 font-medium">{time}</td>
+                {showDate && (
+                  <div className="text-xs font-normal text-muted-foreground mt-1">
+                    {formatHeaderDate(cellDate)}
+                  </div>
+                )}
+              </th>
+            );
+          })}
+        </tr>
+      </thead>
 
-                      {days.map((day) => {
-                        const cellDate = dateForCell(year, month, activeWeek, day);
-                        const inMonth = isAllowedCellDate(cellDate, year, month);
+      <tbody>
+        {times.map((time) => (
+          <tr key={time}>
+            <td className="border p-2 font-medium">
+              {time}
+            </td>
+
+            {days.map((day) => {
+              const cellDate = dateForCell(
+                year,
+                month,
+                activeWeek,
+                day
+              );
+
+              const inMonth = isAllowedCellDate(
+                cellDate,
+                year,
+                month
+              );
+
+              return (
+                <td
+                  key={day}
+                  className={`border p-2 text-center ${
+                    !inMonth
+                      ? "bg-gray-50 text-gray-300"
+                      : ""
+                  }`}
+                >
+                  {inMonth && (
+                    <div className="space-y-2">
+                      {timetables.map((timetable) => {
+                        const slot = findSlotForCell(
+                          timetable,
+                          day,
+                          time
+                        );
+
+                        if (!slot) return null;
 
                         return (
-                          <td
-                            key={day}
-                            className={`border p-2 text-center ${
-                              !inMonth ? "bg-gray-50 text-gray-300" : ""
-                            }`}
+                          <div
+                            key={`${timetable._id}-${slot._id}-${slot.date}`}
+                            className="flex flex-col items-center gap-1"
                           >
-                            {inMonth && (
-                              <div className="space-y-2">
-                                {timetables.map((timetable) => {
-                                  const slot = findSlotForCell(timetable, day, time);
+                            <span className="text-xs font-medium">
+                              {timetable.student?.name ||
+                                timetable.student?.email}
+                            </span>
 
-                                  if (!slot) return null;
+                            <span
+                         className={`inline-flex items-center justify-center min-w-[72px] px-3 py-1 rounded-lg text-xs font-semibold ${
+  slot.status === "free"
+    ? "bg-blue-700 text-white"
+    : slot.status === "busy"
+    ? "bg-blue-100 text-blue-700"
+    : slot.status === "task"
+    ? "bg-cyan-100 text-cyan-700"
+   : "bg-blue-50 border-2 border-blue-900 text-blue-900 shadow-sm"
+}`}  
+                            >
+                              {slot.label || slot.status}
+                            </span>
 
-                                  return (
-                                    <div
-                                      key={`${timetable._id}-${slot._id}-${slot.date}`}
-                                      className="flex flex-col items-center gap-1"
-                                    >
-                                      <span className="text-xs font-medium">
-                                        {timetable.student?.name ||
-                                          timetable.student?.email}
-                                      </span>
-
-                                      <span
-                                        className={`px-2 py-1 rounded text-xs ${
-                                          slot.status === "free"
-                                            ? "bg-green-100 text-green-700"
-                                            : slot.status === "busy"
-                                            ? "bg-gray-200 text-gray-700"
-                                            : slot.status === "task"
-                                            ? "bg-blue-100 text-blue-700"
-                                            : "bg-purple-100 text-purple-700"
-                                        }`}
-                                      >
-                                        {slot.label || slot.status}
-                                      </span>
-
-                                      {slot.status === "meeting" && (
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          className="h-6 px-2 text-xs"
-                                          onClick={() => deleteMeeting(timetable, slot)}
-                                        >
-                                          Delete
-                                        </Button>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
+                            {slot.status === "meeting" && (
+                            <Button
+  size="sm"
+  className="h-7 px-3:bg-blue-900 hover:text-white text-xs font-medium shadow-sm transition-all"
+                                onClick={() =>
+                                  deleteMeeting(
+                                    timetable,
+                                    slot
+                                  )
+                                }
+                              >
+                                Delete
+                              </Button>
                             )}
-                          </td>
+                          </div>
                         );
                       })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                    </div>
+                  )}
+                </td>
+              );
+            })}
+          </tr>
+        ))}
+      </tbody>
+    </table>
 
-              {timetables.length === 0 && (
-                <div className="p-6 text-center text-muted-foreground">
-                  No timetables found.
-                </div>
-              )}
-            </CardContent>
-          </Card>
+    {timetables.length === 0 && (
+      <div className="p-6 text-center text-muted-foreground">
+        No timetables found.
+      </div>
+    )}
+  </CardContent>
+</Card>
+
         </div>
       </div>
     </div>
-  );
+  </div>
+);
 }

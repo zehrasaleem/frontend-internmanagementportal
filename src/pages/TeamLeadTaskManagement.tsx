@@ -13,14 +13,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useNavigate } from "react-router-dom";
-import api, { createTask, fetchTasks, updateTaskStatus, deleteTask } from "@/api/api";
+import api, { createTask, fetchTasks, updateTaskStatus, deleteTask, denyTaskStart } from "@/api/api";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Toaster, toast } from "react-hot-toast";
+import { getErrorMessage } from "@/utils/errorMessage";
 
-/* -------------------- Status Colors -------------------- */
 type TaskStatus =
   | "Assigned"
   | "In Progress"
@@ -30,6 +30,7 @@ type TaskStatus =
   | "Missed"
   | "Pending TL Approval"
   | "Pending Admin Approval"
+  | "Rejected"
   | "Upcoming";
 
 const statusStyles: Record<
@@ -44,10 +45,10 @@ const statusStyles: Record<
   "Pending Admin Approval": { border: "#F59E0B", bg: "#FFFBEB", text: "#92400E", badgeBg: "#FEF3C7", badgeText: "#B45309" },
   "Pending TL Approval": { border: "#F59E0B", bg: "#FFFBEB", text: "#92400E", badgeBg: "#FEF3C7", badgeText: "#B45309" },
   Missed: { border: "#2563EB", bg: "#EFF6FF", text: "#1E3A8A", badgeBg: "#DBEAFE", badgeText: "#1D4ED8" },
+  Rejected: { border: "#DC2626", bg: "#FEF2F2", text: "#991B1B", badgeBg: "#FEE2E2", badgeText: "#B91C1C" },
   Completed: { border: "#800080", bg: "#F5E6F5", text: "#4B004B", badgeBg: "#E6BFE6", badgeText: "#800080" },
 };
 
-/* -------------------- Types -------------------- */
 type CurrentUser = {
   _id: string;
   name?: string;
@@ -83,15 +84,15 @@ type Task = {
   assignedTo: AssignedUser[];
   assignedBy: string | { _id: string; role: "admin" | "teamLead" };
   dueDate: string;
-  status: TaskStatus;
-  project: string;
-
-  // execution
+  status: TaskStatus; 
+  project: { _id: string; title: string } | string;
   startDate?: string | null;
   completedDate?: string | null;
   progress?: number;
-
-  // ✅ add these (Mongoose usually provides them)
+  approvedBy?: string | null;
+  approvedByRole?: "admin" | "teamLead" | null;
+  rejectionReason?: string;
+  rejectedAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -120,7 +121,6 @@ const TeamLeadTaskManagement = () => {
     project: "",
   });
 
-  /* -------------------- Load current user -------------------- */
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -169,7 +169,6 @@ const TeamLeadTaskManagement = () => {
     { icon: Calendar, label: "Timetable & Scheduling" },
   ];
 
-  /* -------------------- Load Tasks & Projects -------------------- */
   useEffect(() => {
     if (!me) return;
 
@@ -197,7 +196,6 @@ const TeamLeadTaskManagement = () => {
     })();
   }, [me]);
 
-  /* -------------------- Lead projects & scoped tasks -------------------- */
   const leadProjects = allProjects.filter((p) => {
     const leadId = typeof p.teamLead === "string" ? p.teamLead : p.teamLead?._id;
     return leadId === me?._id;
@@ -211,7 +209,6 @@ const TeamLeadTaskManagement = () => {
     return assignedById === me?._id;
   });
 
-  /* -------------------- Assignable students for selected project -------------------- */
   const assignableStudents = useMemo(() => {
     if (!formData.project) return [];
 
@@ -234,14 +231,11 @@ const TeamLeadTaskManagement = () => {
 
   const now = new Date();
 
-  /* -------------------- Sections filters -------------------- */
-
-  // Upcoming: assigned + future due
   const upcomingTasks = scopedTasks.filter(
     (t) => t.status === "Assigned" && new Date(t.dueDate) > now
   );
 
- 
+  const rejectedTasks = scopedTasks.filter((t) => t.status === "Rejected");
   const missedTasks = scopedTasks.filter((t) => {
     const isPastDue = new Date(t.dueDate) < now;
     const isExplicitMissedFlow =
@@ -267,8 +261,6 @@ const TeamLeadTaskManagement = () => {
   const todoTasks = scopedTasks.filter((t) => t.status === "Assigned");
   const inProgressTasks = scopedTasks.filter((t) => t.status === "In Progress");
   const completedTasks = scopedTasks.filter((t) => t.status === "Completed");
-
-  /* -------------------- Form handlers -------------------- */
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
@@ -281,27 +273,24 @@ const TeamLeadTaskManagement = () => {
         if (options[i].selected) selected.push(options[i].value);
       setFormData({ ...formData, assignedTo: selected });
     } else if (name === "project") {
-      // ✅ clearing here is correct; prune effect also protects
       setFormData({ ...formData, project: value, assignedTo: [] });
     } else {
       setFormData({ ...formData, [name]: value });
     }
   };
-
-  /* ✅ FIX: single source of truth to open edit modal (prevents stale interns showing) */
   const handleOpenEditModal = (task) => {
-  setEditingTask(task);
+    setEditingTask(task);
 
-  setFormData({
-    title: task.title,
-    description: task.description,
-    project: task.project?._id || "",
-    assignedTo: [], // ✅ CLEAR interns on open
-    dueDate: task.dueDate,
-    dueTime: task.dueTime,
-  });
-  setOpen(true); 
-};
+    setFormData({
+      title: task.title,
+      description: task.description,
+      project: task.project?._id || "",
+      assignedTo: [], 
+      dueDate: task.dueDate,
+      dueTime: task.dueTime,
+    });
+    setOpen(true);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -346,13 +335,12 @@ const TeamLeadTaskManagement = () => {
 
       const res = await fetchTasks();
       setTasks(res.data.tasks || res.data);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      toast.error("Failed to save task");
+      toast.error(getErrorMessage(err, "Failed To Save Task"));
     }
   };
 
-  /* -------------------- Task Card -------------------- */
   type TaskCardProps = {
     task: Task;
     me?: CurrentUser | null;
@@ -390,20 +378,25 @@ const TeamLeadTaskManagement = () => {
       isPastDue && (task.status === "Missed" || task.status === "Pending Start Approval");
 
     const showApproveReject =
-  canSeeActionsOwner &&
-  !isUpcomingSection &&
-  !task.assignedTo.some((u) => u._id === me?._id) &&
-  (
-    task.status === "Pending Approval" ||
-    task.status === "Pending TL Approval" ||
-    (isMissedSection && task.status === "Pending Start Approval")
-    // remove the `(isMissedSection && task.status === "Missed")` condition
-  );
+      canSeeActionsOwner &&
+      !isUpcomingSection &&
+      !task.assignedTo.some((u) => u._id === me?._id) &&
+      (
+        task.status === "Pending Approval" ||
+        task.status === "Pending TL Approval" ||
+        (isMissedSection && task.status === "Pending Start Approval")
+      );
 
 
     const [showDueDateInputsFor, setShowDueDateInputsFor] = useState<string | null>(null);
     const [newDueDate, setNewDueDate] = useState<string>("");
     const [newDueTime, setNewDueTime] = useState<string>("00:00");
+
+    const getProjectName = (project?: { title?: string } | string) => {
+      if (!project) return "—";
+      if (typeof project === "string") return project;
+      return project.title || "—";
+    };
 
     const formatDueDate = (dateString: string) => {
       const d = new Date(dateString);
@@ -418,7 +411,6 @@ const TeamLeadTaskManagement = () => {
       return d.toLocaleString("en-US", options);
     };
 
-    /* ✅ FIX: Time taken should work even if backend doesn't provide completedDate/startDate */
     const timeTaken = (task: Task) => {
       const startRaw = task.startDate || task.createdAt || null;
       const endRaw = task.completedDate || task.updatedAt || null;
@@ -456,34 +448,23 @@ const TeamLeadTaskManagement = () => {
         : isMissedSection
           ? statusStyles["Missed"]
           : statusStyles[task.status];
-        
+
     const handleReject = async (task: Task) => {
       if (!refreshTasks) return;
-
       try {
-        let fallbackStatus: TaskStatus;
+        const reason = window.prompt("Reason (optional):", "") || "";
 
-        switch (task.status) {
-          case "Pending TL Approval":
-          case "Pending Approval":
-            fallbackStatus = "In Progress";
-            break;
-
-          case "Pending Start Approval":
-            fallbackStatus = "Missed";
-            break;
-
-          default:
-            toast.error("Cannot reject task at this stage");
-            return;
+        if (task.status === "Pending Start Approval") {
+          await denyTaskStart(task._id, reason);
+          toast.success("Start request denied");
+        } else {
+          await updateTaskStatus(task._id, "Rejected", reason);
+          toast.success("Task rejected");
         }
-
-        await updateTaskStatus(task._id, fallbackStatus);
-        toast.success("Task rejected and moved back to " + fallbackStatus);
         refreshTasks();
       } catch (err) {
         console.error(err);
-        toast.error("❌ Failed to reject task");
+        toast.error("Failed to process rejection");
       }
     };
 
@@ -491,25 +472,21 @@ const TeamLeadTaskManagement = () => {
       if (!refreshTasks) return;
 
       try {
-        // missed flow: need new due date
         if (needsNewDueDate) {
           setShowDueDateInputsFor(task._id);
           return;
         }
 
-        // normal approval flow: mark completed + set completedDate (helps even if backend doesn't)
-        if (task.status === "Pending Approval" || task.status === "Pending TL Approval") {
-          await api.patch(`/tasks/${task._id}`, {
-            status: "Completed",
-            completedDate: new Date().toISOString(),
-          });
-
+        if (
+          task.status === "Pending Approval" ||
+          task.status === "Pending TL Approval"
+        ) {
+          await updateTaskStatus(task._id, "Completed");
           toast.success("✅ Task approved and marked Completed");
           refreshTasks();
           return;
         }
 
-        // missed request but not past due (edge)
         if (task.status === "Pending Start Approval") {
           await updateTaskStatus(task._id, "Assigned");
           toast.success("✅ Start approved. Task reactivated.");
@@ -575,6 +552,10 @@ const TeamLeadTaskManagement = () => {
               {task.title}
             </h4>
 
+            <div className="text-xs font-medium text-purple-700">
+              Project: {getProjectName(task.project)}
+            </div>
+
             <p className="text-sm text-gray-600">{task.description}</p>
 
             <div className="text-xs text-gray-500">
@@ -607,6 +588,14 @@ const TeamLeadTaskManagement = () => {
             {task.status === "Completed" && (
               <div className="text-xs text-gray-500">
                 Time Taken: {timeTaken(task)}
+              </div>
+            )}
+            {task.status === "Rejected" && (
+              <div className="mt-2 rounded-md bg-red-100 border border-red-300 px-3 py-2">
+                <p className="text-xs font-semibold text-red-700">❌ Task Rejected</p>
+                {task.rejectionReason && (
+                  <p className="text-xs text-red-600 mt-1">Reason: {task.rejectionReason}</p>
+                )}
               </div>
             )}
           </div>
@@ -642,6 +631,11 @@ const TeamLeadTaskManagement = () => {
                     const [h, m] = newDueTime.split(":").map(Number);
                     due.setHours(h, m, 0, 0);
 
+                    if (due.getTime() <= Date.now()) {
+                      toast.error("New due date/time must be in the future.");
+                      return;
+                    }
+
                     try {
                       await api.patch(`/tasks/${task._id}`, {
                         dueDate: due.toISOString(),
@@ -650,7 +644,6 @@ const TeamLeadTaskManagement = () => {
                         startDate: null,
                         completedDate: null,
                       });
-
                       toast.success("✅ New due date set. Task reactivated.");
                       setShowDueDateInputsFor(null);
                       setNewDueDate("");
@@ -698,7 +691,6 @@ const TeamLeadTaskManagement = () => {
     );
   };
 
-  /* -------------------- UI -------------------- */
   return (
     <div className="min-h-screen bg-gray-50">
       <Toaster />
@@ -721,11 +713,10 @@ const TeamLeadTaskManagement = () => {
             <button
               key={index}
               onClick={() => handleNavigation(item.label)}
-              className={`w-full flex items-center px-3 py-3 rounded-lg text-left transition-all duration-200 ${
-                item.label === activeItem
-                  ? "bg-purple-50 text-purple-600 border-l-4 border-purple-600"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              }`}
+              className={`w-full flex items-center px-3 py-3 rounded-lg text-left transition-all duration-200 ${item.label === activeItem
+                ? "bg-purple-50 text-purple-600 border-l-4 border-purple-600"
+                : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                }`}
             >
               <item.icon className="w-5 h-5 flex-shrink-0" />
               <span className="ml-3 font-medium text-sm">{item.label}</span>
@@ -862,9 +853,8 @@ const TeamLeadTaskManagement = () => {
                               return (
                                 <label
                                   key={student._id}
-                                  className={`flex items-center justify-between gap-2 p-2 mb-1 rounded cursor-pointer hover:bg-purple-50 ${
-                                    checked ? "bg-purple-100" : ""
-                                  } ${disableOther ? "opacity-50 cursor-not-allowed" : ""}`}
+                                  className={`flex items-center justify-between gap-2 p-2 mb-1 rounded cursor-pointer hover:bg-purple-50 ${checked ? "bg-purple-100" : ""
+                                    } ${disableOther ? "opacity-50 cursor-not-allowed" : ""}`}
                                 >
                                   <div className="flex items-center gap-3">
                                     <input
@@ -980,7 +970,7 @@ const TeamLeadTaskManagement = () => {
                       const res = await fetchTasks();
                       setTasks(res.data.tasks || res.data);
                     }}
-                    openEditModal={handleOpenEditModal} 
+                    openEditModal={handleOpenEditModal}
                     isUpcomingSection
                     leadProjectIds={leadProjectIds}
                   />
@@ -1011,7 +1001,7 @@ const TeamLeadTaskManagement = () => {
                       const res = await fetchTasks();
                       setTasks(res.data.tasks || res.data);
                     }}
-                    openEditModal={handleOpenEditModal}  
+                    openEditModal={handleOpenEditModal}
                     isMissedSection
                     leadProjectIds={leadProjectIds}
                   />
@@ -1042,7 +1032,36 @@ const TeamLeadTaskManagement = () => {
                       const res = await fetchTasks();
                       setTasks(res.data.tasks || res.data);
                     }}
-                    openEditModal={handleOpenEditModal}   
+                    openEditModal={handleOpenEditModal}
+                    leadProjectIds={leadProjectIds}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {rejectedTasks.length > 0 && (
+            <section className="bg-white rounded-xl p-5 shadow border border-gray-200">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-900">❌ Rejected Tasks</h2>
+                <span
+                  className="text-sm px-3 py-1 rounded-full"
+                  style={{ backgroundColor: statusStyles["Rejected"].badgeBg, color: statusStyles["Rejected"].badgeText }}
+                >
+                  {rejectedTasks.length}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {rejectedTasks.map((task) => (
+                  <TaskCard
+                    key={task._id}
+                    task={task}
+                    me={me}
+                    refreshTasks={async () => {
+                      const res = await fetchTasks();
+                      setTasks(res.data.tasks || res.data);
+                    }}
+                    openEditModal={handleOpenEditModal}
                     leadProjectIds={leadProjectIds}
                   />
                 ))}
@@ -1073,7 +1092,7 @@ const TeamLeadTaskManagement = () => {
                       const res = await fetchTasks();
                       setTasks(res.data.tasks || res.data);
                     }}
-                    openEditModal={handleOpenEditModal}   
+                    openEditModal={handleOpenEditModal}
                     leadProjectIds={leadProjectIds}
                   />
                 ))}
@@ -1101,7 +1120,7 @@ const TeamLeadTaskManagement = () => {
                       const res = await fetchTasks();
                       setTasks(res.data.tasks || res.data);
                     }}
-                    openEditModal={handleOpenEditModal}   
+                    openEditModal={handleOpenEditModal}
                     leadProjectIds={leadProjectIds}
                     isInProgressSection
                   />
@@ -1130,7 +1149,7 @@ const TeamLeadTaskManagement = () => {
                       const res = await fetchTasks();
                       setTasks(res.data.tasks || res.data);
                     }}
-                    openEditModal={handleOpenEditModal} 
+                    openEditModal={handleOpenEditModal}
                     leadProjectIds={leadProjectIds}
                   />
                 ))}

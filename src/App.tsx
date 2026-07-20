@@ -1,10 +1,8 @@
-// src/App.tsx
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
-// ✅ Pages
 import Index from "./pages/Index";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminTimetable from "./pages/AdminTimetable";
@@ -22,10 +20,8 @@ import TeamLeadDashboard from "@/pages/TeamLeadDashboard";
 import TeamLeadTaskManagement from "@/pages/TeamLeadTaskManagement";
 import TeamLeadTimetable from "@/pages/TeamLeadTimetableAndScheduling";
 
-// ✅ New: Project Management Page
 import ProjectManagement from "./pages/ProjectManagement";
 
-// ✅ Auth screens
 import LoginForm from "./components/LoginForm";
 import GoogleSignupForm from "./components/googleSignUp";
 import GoogleSignUpFail from "@/components/googleSignUpFail";
@@ -56,7 +52,7 @@ const App = () => (
           {/* Program management */}
           <Route path="/intern-management" element={<InternManagement />} />
           <Route path="/task-management" element={<TaskManagement />} />
-          <Route path="/project-management" element={<ProjectManagement />} /> {/* ✅ New route */}
+          <Route path="/project-management" element={<ProjectManagement />} /> 
           <Route path="/attendance-reports" element={<AttendanceReports />} />
           <Route path="/program-reports" element={<ProgramReports />} />
 

@@ -9,23 +9,16 @@ import axios, {
 export const BASE_URL =
   import.meta.env.VITE_API_URL ?? "http://localhost:5000/api";
 
-/* ------------------------------------------------------------
-   ✅ Create base Axios instance
------------------------------------------------------------- */
 const api: AxiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_URL ?? "http://localhost:5000/api",
   withCredentials: true,
 });
 
-/* ------------------------------------------------------------
-   🔹 One-off task approval request
------------------------------------------------------------- */
 export const requestTaskApproval = async (taskId: string, isMissed = false) => {
   if (!taskId) throw new Error("Task ID is required");
   return api.put(`/tasks/${taskId.trim()}/request-approval`, { isMissed });
 };
 
-// request admin permission to start missed task
 export const requestTaskStart = (taskId: string) => {
   const token = localStorage.getItem("token");
   return axios.put(
@@ -37,9 +30,6 @@ export const requestTaskStart = (taskId: string) => {
   );
 };
 
-/* ------------------------------------------------------------
-   ✅ Attach JWT token to every request (TS-safe)
------------------------------------------------------------- */
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = localStorage.getItem("token");
 
@@ -58,9 +48,6 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   return config;
 });
 
-/* ------------------------------------------------------------
-   ✅ Handle Unauthorized Responses
------------------------------------------------------------- */
 api.interceptors.response.use(
   (res) => res,
   (err: AxiosError) => {
@@ -72,17 +59,11 @@ api.interceptors.response.use(
   }
 );
 
-/* ------------------------------------------------------------
-   ✅ USER API Endpoints
------------------------------------------------------------- */
 export const fetchUsers = async () => {
   const res = await api.get("/users");
   return res.data;
 };
 
-/* ------------------------------------------------------------
-   ✅ TASK API Endpoints
------------------------------------------------------------- */
 export const createTask = (taskData: any) => api.post("/tasks", taskData);
 
 export const fetchTasks = (email?: string) => {
@@ -96,12 +77,15 @@ export const fetchTasks = (email?: string) => {
 export const updateTaskStatus = async (
   taskId: string,
   status: string,
-  dueDate?: string
+  rejectionReason?: string
 ) => {
   const payload: any = { status };
-  if (dueDate) payload.dueDate = dueDate;
-  return api.patch(`/tasks/${taskId}`, payload);
+  if (rejectionReason) payload.rejectionReason = rejectionReason;
+  return api.put(`/tasks/${taskId.trim()}/status`, payload);
 };
+
+export const denyTaskStart = (taskId: string, rejectionReason?: string) =>
+  api.put(`/tasks/${taskId.trim()}/deny-start`, { rejectionReason });
 
 export const assignTask = (taskId: string, interns: string[]) =>
   api.patch(`/tasks/${taskId.trim()}/assign`, { assignedTo: interns });
@@ -112,9 +96,7 @@ export const deleteTask = (taskId: string) =>
 export const updateTaskProgress = (taskId: string, progress: number) =>
   api.put(`/tasks/${taskId.trim()}/progress`, { progress });
 
-/* ------------------------------------------------------------
-   ✅ PROJECT API Endpoints
------------------------------------------------------------- */
+
 export const getProjects = () => api.get("/projects");
 
 export const createProject = (data: any) => api.post("/projects", data);
@@ -143,9 +125,7 @@ export const assignMoreStudentsToTask = (taskId: string, assignedTo: string[]) =
 export const getTaskById = (taskId: string) =>
   api.get(`/tasks/${taskId.trim()}`);
 
-/* ------------------------------------------------------------
-   ✅ GOOGLE SIGNUP
------------------------------------------------------------- */
+
 interface GoogleSignupPayload {
   fullName: string;
   role: "student" | "admin";
@@ -174,7 +154,4 @@ export const completeNormalSignup = (
   config?: AxiosRequestConfig
 ) => api.post("/auth/register/complete", payload, config);
 
-/* ------------------------------------------------------------
-   ✅ Default export
------------------------------------------------------------- */
 export default api;

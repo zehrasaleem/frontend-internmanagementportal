@@ -20,6 +20,7 @@ type CurrentUser = {
   semester?: string;
   rollNo?: string;
   dateOfJoining?: string;
+  supervisorEmail?: string;
 };
 
 type ProfileForm = {
@@ -38,6 +39,9 @@ const StudentProfile = () => {
 
   const [editMode, setEditMode] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
+  
+  // ✅ ADDED: State to hold the visually converted supervisor name
+  const [supervisorName, setSupervisorName] = useState<string>("Loading...");
 
   const [profileForm, setProfileForm] = useState<ProfileForm>({
     name: "",
@@ -65,6 +69,27 @@ const StudentProfile = () => {
       mounted = false;
     };
   }, [navigate]);
+
+  // ✅ ADDED: Fetch the supervisor's real name using their email
+  useEffect(() => {
+    if (me?.supervisorEmail) {
+      api.get("/auth/admins")
+        .then((res) => {
+          if (res.data && res.data.admins) {
+            const adminMatch = res.data.admins.find(
+              (admin: any) => admin.email === me.supervisorEmail
+            );
+            // If found, show Name. If not, fallback to email.
+            setSupervisorName(adminMatch ? adminMatch.name : me.supervisorEmail);
+          }
+        })
+        .catch(() => {
+          setSupervisorName(me.supervisorEmail || "—");
+        });
+    } else if (me) {
+      setSupervisorName("—"); // No supervisor assigned
+    }
+  }, [me]);
 
   useEffect(() => {
     if (!me || editMode) return;
@@ -325,10 +350,12 @@ const StudentProfile = () => {
                     </p>
                   </div>
 
-                  {/* Keep room for supervisor, if you add it later to the model */}
+                  {/* ✅ UPDATED: Prints the NAME of the supervisor, completely uneditable */}
                   <div>
                     <p className="text-sm text-muted-foreground">Supervisor:</p>
-                    <p className="text-sm font-medium text-foreground">—</p>
+                    <p className="text-sm font-medium text-foreground">
+                      {supervisorName}
+                    </p>
                   </div>
                 </CardContent>
               </Card>

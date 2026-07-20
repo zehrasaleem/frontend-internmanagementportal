@@ -620,63 +620,91 @@ export default function StudentTimetable() {
     navigate("/");
   };
 
-  return (
-    <div className="min-h-screen bg-background">
-      <StudentSidebar activeItem="Timetable & Scheduling" />
+ return (
+  <div className="min-h-screen bg-background">
+    <StudentSidebar activeItem="Timetable & Scheduling" />
 
-      <div className="ml-64">
-        <StudentNavbar me={me} loadingMe={false} onLogout={logout} />
+    <div className="ml-64">
+      <StudentNavbar me={me} loadingMe={false} onLogout={logout} />
 
-        <div className="min-h-[calc(100vh-73px)] p-6 bg-gray-50 space-y-6">
-          <h2 className="text-2xl font-bold">Timetable & Scheduling</h2>
+      <div className="min-h-[calc(100vh-73px)] p-6 bg-gray-50">
 
-          <div className="flex items-center justify-between">
-            <Button variant="outline" onClick={prevMonth} disabled={!canGoPrev}>
-              ← Previous
-            </Button>
+        {/* Sticky Header + Quick Actions */}
+        <div className="sticky top-[73px] z-20 bg-gray-50 pb-4">
+          <div className="space-y-4">
 
-            <div className="text-center">
-              <h3 className="text-lg font-semibold">{monthLabel}</h3>
-              <p className="text-xl font-bold text-black">{semesterLabel}</p>
-            </div>
+            <h2 className="text-2xl font-bold">
+              Timetable & Scheduling
+            </h2>
 
-            <Button variant="outline" onClick={nextMonth}>
-              Next →
-            </Button>
-          </div>
-
-          <div className="flex gap-2 flex-wrap">
-            {Array.from({ length: weeksInMonth }, (_, i) => i + 1).map((w) => (
-              <button
-                key={w}
-                onClick={() => setActiveWeek(w)}
-                className={`px-3 py-1 rounded text-sm ${
-                  activeWeek === w ? "bg-blue-600 text-white" : "bg-gray-200"
-                }`}
+            <div className="flex items-center justify-between">
+              <Button
+                variant="outline"
+                onClick={prevMonth}
+                disabled={!canGoPrev}
               >
-                Week {w}
-              </button>
-            ))}
-          </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
-            </CardHeader>
-
-            <CardContent>
-              <Button onClick={() => setEditMode(!editMode)}>
-                {editMode ? "Cancel Edit" : "Edit Availability"}
+                ← Previous
               </Button>
 
-              {editMode && (
-                <Button className="ml-2" onClick={saveSchedule} disabled={saving}>
-                  {saving ? "Saving..." : "Save Schedule"}
-                </Button>
-              )}
-            </CardContent>
-          </Card>
+              <div className="text-center">
+                <h3 className="text-lg font-semibold">
+                  {monthLabel}
+                </h3>
 
+                <p className="text-xl font-bold text-black">
+                  {semesterLabel}
+                </p>
+              </div>
+
+              <Button variant="outline" onClick={nextMonth}>
+                Next →
+              </Button>
+            </div>
+
+            <div className="flex gap-2 flex-wrap">
+              {Array.from({ length: weeksInMonth }, (_, i) => i + 1).map((w) => (
+                <button
+                  key={w}
+                  onClick={() => setActiveWeek(w)}
+                  className={`px-3 py-1 rounded text-sm ${
+                    activeWeek === w
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-200"
+                  }`}
+                >
+                  Week {w}
+                </button>
+              ))}
+            </div>
+
+            {/* Quick Actions now moves with the sticky header */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Quick Actions</CardTitle>
+              </CardHeader>
+
+              <CardContent>
+                <Button onClick={() => setEditMode(!editMode)}>
+                  {editMode ? "Cancel Edit" : "Edit Availability"}
+                </Button>
+
+                {editMode && (
+                  <Button
+                    className="ml-2"
+                    onClick={saveSchedule}
+                    disabled={saving}
+                  >
+                    {saving ? "Saving..." : "Save Schedule"}
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+
+          </div>
+        </div>
+
+        {/* Weekly Schedule */}
+        <div className="mt-6">
           <Card>
             <CardHeader>
               <CardTitle>Weekly Schedule</CardTitle>
@@ -689,7 +717,13 @@ export default function StudentTimetable() {
                     <th className="border p-2">Time</th>
 
                     {days.map((day) => {
-                      const cellDate = dateForCell(year, month, activeWeek, day);
+                      const cellDate = dateForCell(
+                        year,
+                        month,
+                        activeWeek,
+                        day
+                      );
+
                       const showDate =
                         cellDate.getFullYear() === year &&
                         cellDate.getMonth() === month;
@@ -697,6 +731,7 @@ export default function StudentTimetable() {
                       return (
                         <th key={day} className="border p-2">
                           <div>{day}</div>
+
                           {showDate && (
                             <div className="text-xs font-normal text-muted-foreground mt-1">
                               {formatHeaderDate(cellDate)}
@@ -711,21 +746,39 @@ export default function StudentTimetable() {
                 <tbody>
                   {times.map((time) => (
                     <tr key={time}>
-                      <td className="border p-2 font-medium">{time}</td>
+                      <td className="border p-2 font-medium">
+                        {time}
+                      </td>
 
                       {days.map((day) => {
-                        const cellDate = dateForCell(year, month, activeWeek, day);
-                        const inMonth = isAllowedCellDate(cellDate, year, month);
+                        const cellDate = dateForCell(
+                          year,
+                          month,
+                          activeWeek,
+                          day
+                        );
+
+                        const inMonth = isAllowedCellDate(
+                          cellDate,
+                          year,
+                          month
+                        );
+
                         const dk = toDateKey(cellDate);
 
                         const slot = visibleSlots.find(
-                          (s) => s.day === day && s.time === time && s.date === dk
+                          (s) =>
+                            s.day === day &&
+                            s.time === time &&
+                            s.date === dk
                         );
 
                         return (
                           <td
                             key={day}
-                            onClick={() => inMonth && toggleSlot(day, time)}
+                            onClick={() =>
+                              inMonth && toggleSlot(day, time)
+                            }
                             className={`border p-2 text-center ${
                               !inMonth
                                 ? "bg-gray-50 text-gray-300 cursor-not-allowed"
@@ -734,24 +787,24 @@ export default function StudentTimetable() {
                                 : ""
                             }`}
                           >
-                            {inMonth && slot && (
-                              <span
-                                className={`px-2 py-1 rounded text-xs ${
-                                  slot.status === "free"
-                                    ? "bg-green-100 text-green-700"
-                                    : slot.status === "busy"
-                                    ? "bg-gray-200 text-gray-700"
-                                    : slot.status === "task"
-                                    ? "bg-blue-100 text-blue-700"
-                                    : "bg-purple-100 text-purple-700"
-                                }`}
-                              >
-                                {slot.label || slot.status}
+                          {inMonth && slot && (
+  <span
+    className={`inline-flex items-center justify-center min-w-[72px] px-3 py-1 rounded-lg text-xs font-semibold ${
+      slot.status === "free"
+        ? "bg-blue-700 text-white"
+        : slot.status === "busy"
+        ? "bg-blue-100 text-blue-700"
+        : slot.status === "task"
+        ? "bg-cyan-100 text-cyan-700"
+        : "bg-blue-50 border-2 border-blue-900 text-blue-900 shadow-sm"
+    }`}
+  >
+    {slot.label || slot.status}
+  </span>
+)}                       {inMonth && !slot && (
+                              <span className="text-xs text-muted-foreground">
+                                —
                               </span>
-                            )}
-
-                            {inMonth && !slot && (
-                              <span className="text-xs text-muted-foreground">—</span>
                             )}
                           </td>
                         );
@@ -763,7 +816,8 @@ export default function StudentTimetable() {
             </CardContent>
           </Card>
         </div>
+
       </div>
     </div>
-  );
-}
+  </div>
+); }

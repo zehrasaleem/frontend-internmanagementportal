@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,13 @@ type Step = "collect" | "otp" | "profile";
 type Role = "student" | "admin";
 type MessageType = "error" | "success";
 
-export default function normalRegistrationSignUpButton() {
+interface AdminUser {
+  _id: string;
+  name: string;
+  email: string;
+}
+
+export default function NormalRegistrationSignUpButton() {
   const navigate = useNavigate();
 
   const [step, setStep] = useState<Step>("collect");
@@ -43,6 +49,24 @@ export default function normalRegistrationSignUpButton() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [messageType, setMessageType] = useState<MessageType>("error");
+
+  // ✅ ADDED: State to hold the admins fetched from the backend
+  const [adminsList, setAdminsList] = useState<AdminUser[]>([]);
+
+  // ✅ ADDED: Fetch admins when component mounts
+  useEffect(() => {
+    const fetchAdmins = async () => {
+      try {
+        const res = await api.get("/auth/admins");
+        if (res.data && res.data.admins) {
+          setAdminsList(res.data.admins);
+        }
+      } catch (err) {
+        console.error("Could not load admins for dropdown", err);
+      }
+    };
+    fetchAdmins();
+  }, []);
 
   const requestOtp = async () => {
     setSending(true);
@@ -258,16 +282,29 @@ export default function normalRegistrationSignUpButton() {
 
               {role === "student" && (
                 <>
+                  {/* ✅ UPDATED: Changed from Input to Dropdown for Supervisor Email */}
                   <div>
                     <label className="block text-sm font-medium mb-1">
-                      Supervisor/Admin Email
+                      Supervisor / Admin
                     </label>
-                    <Input
-                      type="email"
-                      value={supervisorEmail}
-                      onChange={(e) => setSupervisorEmail(e.target.value)}
-                      placeholder="admin@cloud.neduet.edu.pk"
-                    />
+                    <Select value={supervisorEmail} onValueChange={setSupervisorEmail}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select your supervisor" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {adminsList.length > 0 ? (
+                          adminsList.map((admin) => (
+                            <SelectItem key={admin._id} value={admin.email}>
+                              {admin.name} ({admin.email})
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="none" disabled>
+                            No admins found
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div>

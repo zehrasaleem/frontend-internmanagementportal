@@ -49,42 +49,39 @@ const LoginForm = () => {
   };
 
   // ✅ If signup mode is active, show the signup component instead
-  
-  // ✅ If signup mode is active, show the signup component instead
-if (showSignUp) {
-  return (
-    <div className="w-full max-w-md mx-auto">
-      <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl border border-white/20 p-6">
-        <div className="text-center mb-4"> {/* reduced margin from mb-8 → mb-4 */}
-          <h2 className="text-3xl font-bold mb-1 bg-gradient-to-r from-blue-700 via-blue-600 to-blue-400 text-transparent bg-clip-text">
-           Sign up for Intern Management Portal
-           </h2>
+  if (showSignUp) {
+    return (
+      <div className="w-full max-w-md mx-auto">
+        <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl border border-white/20 p-6">
+          <div className="text-center mb-4">
+            <h2 className="text-3xl font-bold mb-1 bg-gradient-to-r from-blue-700 via-blue-600 to-blue-400 text-transparent bg-clip-text">
+             Sign up for Intern Management Portal
+             </h2>
 
-          <p className="text-gray-600 text-sm m-0">
-            Create your account using your @cloud.neduet.edu.pk email
-          </p>
-        </div>
+            <p className="text-gray-600 text-sm m-0">
+              Create your account using your @cloud.neduet.edu.pk email
+            </p>
+          </div>
 
-        <div className="mt-2"> {/* reduced top margin to bring closer */}
-          <NormalRegistrationSignUpButton />
-        </div>
+          <div className="mt-2">
+            <NormalRegistrationSignUpButton />
+          </div>
 
-        <div className="text-center mt-4"> {/* reduced mt-6 → mt-4 */}
-          <p className="text-sm text-gray-600">
-            Already have an account?{" "}
-            <button
-              className="text-blue-600 font-medium hover:text-blue-700"
-              onClick={() => setShowSignUp(false)}
-            >
-              Back to Login
-            </button>
-          </p>
+          <div className="text-center mt-4">
+            <p className="text-sm text-gray-600">
+              Already have an account?{" "}
+              <button
+                className="text-blue-600 font-medium hover:text-blue-700"
+                onClick={() => setShowSignUp(false)}
+              >
+                Back to Login
+              </button>
+            </p>
+          </div>
         </div>
       </div>
-    </div>
-  );
-}
-
+    );
+  }
 
   // ✅ Default view: Login Form
   return (
